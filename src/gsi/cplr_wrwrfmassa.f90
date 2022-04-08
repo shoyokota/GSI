@@ -89,7 +89,7 @@ contains
     use constants, only: soilmoistmin
     use gsi_io, only: lendian_in,verbose
     use rapidrefresh_cldsurf_mod, only: l_hydrometeor_bkio,l_gsd_soilTQ_nudge,&
-         i_use_2mq4b
+         i_use_2mq4b,i_use_2mt4b
     use wrf_mass_guess_mod, only: destroy_cld_grids
     use gsi_bundlemod, only: GSI_BundleGetPointer
     use gsi_metguess_mod, only: gsi_metguess_get,GSI_MetGuess_Bundle
@@ -156,7 +156,7 @@ contains
   
     real(r_kind), pointer :: ges_ps(:,:)=>NULL()
     real(r_kind), pointer :: ges_tsk(:,:)=>NULL()
-    real(r_kind), pointer :: ges_th2(:,:)=>NULL()
+    real(r_kind), pointer :: ges_t2m(:,:)=>NULL()
     real(r_kind), pointer :: ges_q2(:,:)=>NULL()
     real(r_kind), pointer :: ges_soilt1(:,:)=>NULL()
     real(r_kind), pointer :: ges_tslb_it(:,:,:)=>NULL()
@@ -751,8 +751,6 @@ contains
           end do
        end do
        ier=0
-       call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'th2m',  ges_th2, istatus );ier=ier+istatus
-       call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'q2m' ,  ges_q2,  istatus );ier=ier+istatus
        call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'tsoil', ges_soilt1, istatus );ier=ier+istatus
        call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'tskn' , ges_tsk , istatus );ier=ier+istatus
        if (ier/=0) then ! doesn't have to die - code can be generalized to bypass missing vars
@@ -764,12 +762,23 @@ contains
           do j=1,lat1
              jp1=j+1
              all_loc(j,i,i_tsk)=ges_tsk(jp1,ip1)
-             all_loc(j,i,i_th2)=ges_th2(jp1,ip1)
              all_loc(j,i,i_soilt1)=ges_soilt1(jp1,ip1)
           end do
        end do
     endif ! l_gsd_soilTQ_nudge
+    if(i_use_2mt4b > 0 ) then
+       call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 't2m',  ges_t2m, istatus );ier=ier+istatus
+       do i=1,lon1
+          ip1=i+1
+          do j=1,lat1
+  !  Convert 2m sensible T to potential T
+             jp1=j+1
+             all_loc(j,i,i_th2)=ges_t2m(jp1,ip1)*(r100/ges_ps(jp1,ip1))**rd_over_cp_mass
+          end do
+       end do
+    endif
     if (i_use_2mq4b > 0) then
+       call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'q2m' ,  ges_q2,  istatus );ier=ier+istatus
        do i=1,lon1
           ip1=i+1
           do j=1,lat1
@@ -1882,6 +1891,7 @@ contains
   ! Declare local parameters
     character(len=*),parameter::myname='wrwrfmassa_netcdf'
     real(r_kind),parameter:: r225=225.0_r_kind
+    integer, parameter :: nlvl_qcheck=3
     real(r_kind),parameter:: D608=0.608_r_kind
   
   ! Declare local variables
@@ -1890,8 +1900,10 @@ contains
     real(r_single),allocatable::all_loc(:,:,:)
     real(r_single),allocatable::strp(:)
     real(r_single),allocatable::landmask(:),snow(:),seaice(:),t1st2d(:),pt2t(:)
+    real(r_single),allocatable::qs1st2d(:,:),sfcprs(:)
+    real(r_kind),allocatable::tmp2da(:,:),tmp2db(:,:),tmp2dc(:,:)
     character(6) filename
-    integer(i_kind) i,j,k,kt,kq,ku,kv,it,i_psfc,i_t,i_q,i_u,i_v,i_w,i_dbz
+    integer(i_kind) i,j,k,kt,kq,ku,kv,it,i_psfc,i_t,i_q,i_u,i_v,i_w,i_dbz,ij
     integer(i_kind) i_qc,i_qi,i_qr,i_qs,i_qg,i_qnr,i_qni,i_qnc
     integer(i_kind) kqc,kqi,kqr,kqs,kqg,kqnr,kqni,kqnc,i_tt,ktt,kw,kdbz
     integer(i_kind) i_sst,i_skt,i_th2,i_q2,i_soilt1,i_tslb,i_smois,ktslb,ksmois
@@ -1911,7 +1923,7 @@ contains
   
     real(r_kind), pointer :: ges_ps(:,:  )=>NULL()
     real(r_kind), pointer :: ges_tsk(:,:)=>NULL()
-    real(r_kind), pointer :: ges_th2(:,:)=>NULL()
+    real(r_kind), pointer :: ges_t2m(:,:)=>NULL()
     real(r_kind), pointer :: ges_q2(:,:)=>NULL()
     real(r_kind), pointer :: ges_soilt1(:,:)=>NULL()
     real(r_kind), pointer :: ges_tslb_it(:,:,:)=>NULL()
@@ -2095,6 +2107,8 @@ contains
     if(mype==0) then
        allocate(landmask(im*jm),snow(im*jm),seaice(im*jm))
        allocate(t1st2d(im*jm),pt2t(im*jm))
+       allocate(qs1st2d(im*jm,nlvl_qcheck))
+       allocate(sfcprs(im*jm))
     endif
   
     if(mype == 0) write(6,*)' at 2 in wrwrfmassa'
@@ -2373,8 +2387,7 @@ contains
        call unfill_mass_grid2t(tempa,im,jm,temp1)
        write(lendian_out)temp1
        do i=1,im*jm
-          work_prsl = one_tenth*(aeta1_ll(1)*(temp1(i)/r100-pt_ll)+aeta2_ll(1)+pt_ll)
-          pt2t(i)   = (work_prsl/r100)**rd_over_cp_mass
+          sfcprs(i) = temp1(i)
        enddo
     end if
   
@@ -2399,11 +2412,29 @@ contains
           end do
           call unfill_mass_grid2t(tempa,im,jm,temp1)
           write(lendian_out)temp1
-          if(k==1) then
-             do i=1,im*jm
-                t1st2d(i)=temp1(i)*pt2t(i)  ! convert potential to sensible T
-             end do
-             pt2t=t1st2d   ! save a copy
+          if(k>=1 .and. k<=nlvl_qcheck) then
+             ! calculate moisture saturation at model 1st level  
+             allocate(tmp2da(im,jm),tmp2db(im,jm),tmp2dc(im,jm))
+             ij=0
+             do j=1,jm
+                do i=1,im
+                   ij=ij+1
+                   work_prsl = one_tenth*(aeta1_ll(k)*(sfcprs(ij)/r100-pt_ll)+aeta2_ll(k)+pt_ll)
+                   tmp2dc(i,j)=work_prsl                                       ! pressure
+                   tmp2db(i,j)=temp1(ij)*(work_prsl/r100)**rd_over_cp_mass     ! T in K
+                   if(k==1) t1st2d(ij)  = tmp2db(i,j)
+                enddo
+             enddo
+             call genqsat(tmp2da,tmp2db,tmp2dc,im,jm,1,.false.,0)
+             ij=0
+             do j=1,jm
+                do i=1,im
+                   ij=ij+1
+                   qs1st2d(ij,k)=tmp2da(i,j) ! moisture saturation 
+                enddo
+             enddo
+             deallocate(tmp2da,tmp2db,tmp2dc)
+             if(k==1) pt2t=t1st2d   ! save a copy
           endif
        end if
     end do
@@ -2421,7 +2452,11 @@ contains
           do i=1,iglobal
              tempa(i)=tempa(i)-tempb(i)
           end do
-          call unfill_mass_grid2t(tempa,im,jm,temp1)
+          if(k>=1 .and. k<=nlvl_qcheck) then
+             call unfill_mass_grid2t_drycheck(tempa,im,jm,temp1,qs1st2d(:,k))
+          else
+             call unfill_mass_grid2t(tempa,im,jm,temp1)
+          endif
           write(lendian_out)temp1
        end if
     end do
@@ -2528,14 +2563,15 @@ contains
     endif ! l_gsd_soilTQ_nudge
 
     if(i_use_2mt4b > 0 ) then
-       call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'th2m', ges_th2,istatus );ier=ier+istatus
+       call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 't2m', ges_t2m,istatus );ier=ier+istatus
        if (ier/=0) then ! doesn't have to die - code can be generalized to bypass
            write(6,*)'wrwrfmassa_netcdf: getpointer failed, cannot retrieve th2'
            call stop2(999)
        endif
+! convert to potential T
        do i=1,lon2
           do j=1,lat2
-             all_loc(j,i,i_th2)=ges_th2(j,i)
+             all_loc(j,i,i_th2)=ges_t2m(j,i)*(r100/ges_ps(j,i))**rd_over_cp_mass
           end do
        end do
     endif
@@ -2709,7 +2745,7 @@ contains
           end do
           write(6,*)' at 10.13 in wrwrfmassa,max,min(tempa)=', &
                              maxval(tempa),minval(tempa)
-          call unfill_mass_grid2t(tempa,im,jm,temp1)
+          call unfill_mass_grid2t_drycheck(tempa,im,jm,temp1,qs1st2d(:,1))
           write(6,*)' at 10.14 in wrwrfmassa,max,min(temp1)=', &
                              maxval(temp1),minval(temp1)
           write(lendian_out)temp1
@@ -3015,6 +3051,8 @@ contains
        deallocate(seaice)
        deallocate(t1st2d)
        deallocate(pt2t)
+       deallocate(qs1st2d)
+       deallocate(sfcprs)
     endif
     
   end subroutine wrwrfmassa_netcdf_wrf
