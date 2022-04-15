@@ -1243,25 +1243,23 @@ subroutine gsi_fv3ncdf2d_read(fv3filenamegin,it,ges_z,ges_t2m,ges_q2m)
           endif
           if(fv3_io_layout_y > 1) then
              do nio=0,fv3_io_layout_y-1
-               if(allocated(sfc       )) deallocate(sfc       )
-                  if(ndim >=3) then
-                     allocate(sfc(nx,ny_layout_len(nio),1))
-                     iret=nf90_get_var(gfile_loc_layout(nio),i,sfc)
-                  else if (ndim == 2) then
-                     allocate(sfc(nx,ny_layout_len(nio),1))
-                     iret=nf90_get_var(gfile_loc_layout(nio),i,sfc(:,:,1))
-                  endif
-               sfc_fulldomain(:,ny_layout_b(nio):ny_layout_e(nio))=sfc(:,:,1)
+                if(allocated(sfc       )) deallocate(sfc       )
+                allocate(sfc(nx,ny_layout_len(nio),1))
+                if(ndim >=3) then
+                   iret=nf90_get_var(gfile_loc_layout(nio),i,sfc)
+                else if (ndim == 2) then
+                   iret=nf90_get_var(gfile_loc_layout(nio),i,sfc(:,:,1))
+                endif
+                sfc_fulldomain(:,ny_layout_b(nio):ny_layout_e(nio))=sfc(:,:,1)
              enddo
           else
              if(allocated(sfc       )) deallocate(sfc       )
-                if(ndim >=3) then  !the block of 10 lines is compied from GSL gsi.
-                   allocate(sfc(nx,ny,1))
-                   iret=nf90_get_var(gfile_loc,i,sfc)
-                else if (ndim == 2) then
-                   allocate(sfc(nx,ny,1))
-                   iret=nf90_get_var(gfile_loc,i,sfc(:,:,1))
-                endif
+             allocate(sfc(nx,ny,1))
+             if(ndim >=3) then  !the block of 10 lines is compied from GSL gsi.
+                iret=nf90_get_var(gfile_loc,i,sfc)
+             else if (ndim == 2) then
+                iret=nf90_get_var(gfile_loc,i,sfc(:,:,1))
+             endif
              sfc_fulldomain(:,:)=sfc(:,:,1)
           endif
           call fv3_h_to_ll(sfc_fulldomain,a,nx,ny,nxa,nya,grid_reverse_flag)
@@ -1329,6 +1327,7 @@ subroutine gsi_fv3ncdf2d_read(fv3filenamegin,it,ges_z,ges_t2m,ges_q2m)
                   sfc_fulldomain(:,ny_layout_b(nio):ny_layout_e(nio))=sfc1
                 enddo
              else
+                if(allocated(sfc1       )) deallocate(sfc1       )
                 allocate(sfc1(nx,ny) )
                 iret=nf90_get_var(gfile_loc,k,sfc1)
                 sfc_fulldomain=sfc1
@@ -1360,8 +1359,10 @@ subroutine gsi_fv3ncdf2d_read(fv3filenamegin,it,ges_z,ges_t2m,ges_q2m)
           end do
        end do
 
-       deallocate (sfc,sfc1,dim)
-       deallocate (sfc_fulldomain)
+       if(allocated(sfc)) deallocate (sfc)
+       if(allocated(sfc1)) deallocate (sfc1)
+       if(allocated(dim)) deallocate (dim)
+       if(allocated(sfc_fulldomain)) deallocate (sfc_fulldomain)
     endif  ! mype
 
 
