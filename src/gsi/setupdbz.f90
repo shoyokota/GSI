@@ -94,6 +94,8 @@ subroutine setupdbz(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,radardbz_d
 !                                for variational DA applications
 !                              - modified jacobian terms to prevent possible
 !                                coding errors
+!  2022-04-01 Yongming Wang and X. Wang, enable direct reflectivity assimilation method in Wang and Wang (2017, MWR) 
+!                                  for FV3LAM, poc: xuguang.wang@ou.edu
 !
 !   input argument list:
 !     lunin    - unit from which to read observations
@@ -1451,6 +1453,12 @@ subroutine setupdbz(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,radardbz_d
 ! Write information to diagnostic file
   if(radardbz_diagsave  .and. ii>0 )then
 
+   if( .not. l_use_dbz_directDA )then
+     write(7)'dbz',nchar,nreal,ii,mype,ioff0
+     write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
+     deallocate(cdiagbuf,rdiagbuf)
+   else
+
      write(string,600) jiter
 600  format('radardbz_',i2.2)
      diag_file=trim(dirname) // trim(string)
@@ -1476,6 +1484,7 @@ subroutine setupdbz(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,radardbz_d
      write(lu_diag)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
      deallocate(cdiagbuf,rdiagbuf)
      close(lu_diag)
+   end if
   end if
   write(6,*)'mype, irefsmlobs,irejrefsmlobs are ',mype,' ',irefsmlobs, ' ',irejrefsmlobs
 ! close(52) !simulated obs
