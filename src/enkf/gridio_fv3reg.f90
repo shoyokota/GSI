@@ -54,15 +54,16 @@ module gridio
 
   !-------------------------------------------------------------------------
   
-  integer(i_kind) ,parameter:: ndynvarslist=6, ntracerslist=8
+  integer(i_kind) ,parameter:: ndynvarslist=6, ntracerslist=8,nphysicslist=1
   character(len=max_varname_length), parameter :: vardynvars(ndynvarslist) =(/"u","v", &
                                 "T","W","DZ","delp"/) 
   character(len=max_varname_length), parameter :: vartracers(ntracerslist) =(/'sphum','o3mr', &
                                 'liq_wat','ice_wat','rainwat','snowwat','graupel','rain_nc'/)
+  character(len=max_varname_length), parameter :: varphysics(nphysicslist) =(/'ref_f3d'/)  
   type type_fv3lamfile 
        logical l_filecombined
-       character(len=max_varname_length), dimension(2):: fv3lamfilename
-       integer (i_kind), dimension(2):: fv3lam_fileid(2)
+       character(len=max_varname_length), dimension(3):: fv3lamfilename
+       integer (i_kind), dimension(3):: fv3lam_fileid
        contains
          procedure, pass(this) :: setupfile => type_bound_setupfile
          procedure, pass(this):: get_idfn => type_bound_getidfn
@@ -90,15 +91,14 @@ contains
    real(r_double), dimension(npts,nlevs,ntimes,nanal2-nanal1+1), intent(out) :: qsat
 
 
-
     ! Define local variables 
     character(len=500) :: filename
-    character(len=:),allocatable :: fv3filename,fv3filename1
+    character(len=:),allocatable :: fv3filename,fv3filename1,fv3filename2
     character(len=7)   :: charnanal
-    integer(i_kind) file_id,file_id1
+    integer(i_kind) file_id,file_id1,file_id2
     real(r_single), dimension(:,:,:), allocatable ::workvar3d,uworkvar3d,&
                         vworkvar3d,tvworkvar3d,tsenworkvar3d,&
-                        workprsi,qworkvar3d,wworkvar3d
+                        workprsi,qworkvar3d,workvar3d_tmp
     real(r_double),dimension(:,:,:),allocatable:: qsatworkvar3d
     real(r_single), dimension(:,:),   allocatable ::pswork
 
@@ -113,6 +113,7 @@ contains
     integer :: nlevsp1
     integer :: i,j, k,nn,ntile,nn_tile0, nb,nanal,ne
     integer :: u_ind, v_ind, tv_ind,tsen_ind, q_ind, oz_ind
+    integer :: dbz_ind
     integer :: w_ind, ql_ind, qi_ind, qr_ind, qs_ind, qg_ind, qnr_ind
     integer :: ps_ind, sst_ind
     integer :: tmp_ind,ifile
@@ -137,6 +138,7 @@ contains
     qs_ind  = getindex(vars3d, 'qs')   ! Q snow (3D)
     qg_ind  = getindex(vars3d, 'qg')   ! Q graupel (3D)
     qnr_ind  = getindex(vars3d, 'qnr') ! N rain (3D)    
+    dbz_ind  = getindex(vars3d, 'dbz')   ! Reflectivity (3D)
 
     ps_ind  = getindex(vars2d, 'ps')  ! Ps (2D)
     sst_ind = getindex(vars2d, 'sst') ! SST (2D)
@@ -181,8 +183,19 @@ contains
            fv3filename1=trim(adjustl(filename))//"_tracer"
            call nc_check( nf90_open(trim(adjustl(fv3filename1)),nf90_nowrite,file_id1),&
                       myname_,'open: '//trim(adjustl(fv3filename1)) )
-           call fv3lamfile%setupfile(fileid1=file_id,fv3fn1=trim(adjustl(fv3filename))  , &
+           if(dbz_ind > 0) then
+               fv3filename2=trim(adjustl(filename))//"_phyvar"
+               call nc_check( nf90_open(trim(adjustl(fv3filename2)),nf90_nowrite,file_id2),&
+                      myname_,'open: '//trim(adjustl(fv3filename2)) )
+           endif
+           if(dbz_ind > 0) then
+             call fv3lamfile%setupfile(fileid1=file_id,fv3fn1=trim(adjustl(fv3filename))  , &
+                                         fileid2=file_id1,fv3fn2=trim(adjustl(fv3filename1)), &
+                                         fileid3=file_id2,fv3fn3=trim(adjustl(fv3filename2))      )
+           else
+             call fv3lamfile%setupfile(fileid1=file_id,fv3fn1=trim(adjustl(fv3filename))  , &
                                          fileid2=file_id1,fv3fn2=trim(adjustl(fv3filename1)) )
+           endif
            
         endif 
 
@@ -237,16 +250,15 @@ contains
 
       endif
       if (w_ind > 0) then
-      allocate(wworkvar3d(nx_res,ny_res,nlevs))
          varstrname = 'W'
          call fv3lamfile%get_idfn(varstrname,file_id,fv3filename)
-         call read_fv3_restart_data3d(varstrname,fv3filename,file_id,wworkvar3d)
+         call read_fv3_restart_data3d(varstrname,fv3filename,file_id,workvar3d)
       do k=1,nlevs
          nn = nn_tile0
          do j=1,ny_res
            do i=1,nx_res
               nn=nn+1
-              vargrid(nn,levels(w_ind-1)+k,nb,ne)=wworkvar3d(i,j,k)
+              vargrid(nn,levels(w_ind-1)+k,nb,ne)=workvar3d(i,j,k)
            enddo
          enddo
       enddo
@@ -255,7 +267,6 @@ contains
                write(6,*) 'READFVregional : w ',                           &
                    & k, minval(vargrid(:,k,nb,ne)), maxval(vargrid(:,k,nb,ne))
       enddo
-      deallocate(wworkvar3d)
 
       endif
 
@@ -467,6 +478,34 @@ contains
           enddo
 
        endif
+    if (dbz_ind > 0) then
+       allocate(workvar3d_tmp(nx_res-6,ny_res-6,nlevs))
+       varstrname = 'ref_f3d'
+       call fv3lamfile%get_idfn(varstrname,file_id,fv3filename)
+       call read_fv3_restart_data3d(varstrname,fv3filename,file_id,workvar3d_tmp)
+       workvar3d = 0.0_r_kind
+       workvar3d(4:nx_res-3,4:ny_res-3,1:nlevs)=workvar3d_tmp
+       deallocate(workvar3d_tmp)
+       where( workvar3d < 0.0_r_kind )
+         workvar3d = 0.0_r_kind
+       end where
+       do k=1,nlevs
+         nn = nn_tile0
+         do j=1,ny_res
+           do i=1,nx_res
+              nn=nn+1
+              vargrid(nn,levels(dbz_ind-1)+k,nb,ne)=workvar3d(i,j,nlevs+1-k)
+           enddo
+         enddo
+       enddo
+       do k = levels(dbz_ind-1)+1, levels(dbz_ind)
+         if (nproc .eq. 0)                                               &
+                 write(6,*) 'READFVregional : dbz ',                           &
+                 & k, minval(vargrid(:,k,nb,ne)), maxval(vargrid(:,k,nb,ne))
+       enddo
+
+    endif
+       
       
        ! set SST to zero for now
        if (sst_ind > 0) then
@@ -542,7 +581,8 @@ contains
          call nc_check( nf90_close(file_id),&
               myname_,'close '//trim(filename) )
        else
-         do ifile=1,2
+         do ifile=1,3
+            if(dbz_ind <= 0 .and. ifile == 3) cycle 
             file_id=fv3lamfile%fv3lam_fileid(ifile)
             filename=fv3lamfile%fv3lamfilename(ifile)
             call nc_check( nf90_close(file_id),&
@@ -594,19 +634,19 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
     !----------------------------------------------------------------------
     ! Define variables computed within subroutine
     character(len=500)  :: filename
-    character(len=:),allocatable :: fv3filename,fv3filename1
+    character(len=:),allocatable :: fv3filename,fv3filename1,fv3filename2
     character(len=7)    :: charnanal
 
     !----------------------------------------------------------------------
-    integer(i_kind) :: u_ind, v_ind, tv_ind, tsen_ind,q_ind, ps_ind,oz_ind
+    integer(i_kind) :: u_ind, v_ind, tv_ind, tsen_ind,q_ind, ps_ind,oz_ind,dbz_ind
     integer(i_kind) :: w_ind, cw_ind, ph_ind
     integer(i_kind) :: ql_ind, qi_ind, qr_ind, qs_ind, qg_ind, qnr_ind
 
-    integer(i_kind) file_id,file_id1
+    integer(i_kind) file_id,file_id1,file_id2
     real(r_single), dimension(:,:), allocatable ::pswork
     real(r_single), dimension(:,:,:), allocatable ::workvar3d,workinc3d,workinc3d2,uworkvar3d,&
                         vworkvar3d,tvworkvar3d,tsenworkvar3d,&
-                        workprsi,qworkvar3d,wworkvar3d
+                        workprsi,qworkvar3d,workvar3d_tmp
 
     real(r_single)              :: clip
 
@@ -647,6 +687,7 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
     qs_ind  = getindex(vars3d, 'qs')  ! QS (3D) for FV3
     qg_ind  = getindex(vars3d, 'qg')  ! QG (3D) for FV3
     qnr_ind  = getindex(vars3d, 'qnr')  ! QNR (3D) for FV3
+    dbz_ind  = getindex(vars3d, 'dbz')   ! Reflectivity (3D)
     
     ps_ind  = getindex(vars2d, 'ps')  ! Ps (2D)
 
@@ -693,6 +734,15 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
                     myname_,'open: '//trim(adjustl(fv3filename1)) )
          call fv3lamfile%setupfile(fileid1=file_id,fv3fn1=trim(adjustl(fv3filename))  , &
                                        fileid2=file_id1,fv3fn2=trim(adjustl(fv3filename1)) )
+          
+         if(dbz_ind > 0) then
+             call fv3lamfile%setupfile(fileid1=file_id,fv3fn1=trim(adjustl(fv3filename))  , &
+                                         fileid2=file_id1,fv3fn2=trim(adjustl(fv3filename1)), &
+                                         fileid3=file_id2,fv3fn3=trim(adjustl(fv3filename2))      )
+          else
+             call fv3lamfile%setupfile(fileid1=file_id,fv3fn1=trim(adjustl(fv3filename))  , &
+                                         fileid2=file_id1,fv3fn2=trim(adjustl(fv3filename1)) )
+          endif
          
       endif 
 
@@ -748,10 +798,9 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
 
     if (w_ind > 0) then
        varstrname = 'W'
-       allocate(wworkvar3d(nx_res,ny_res,nlevs))
 
        call fv3lamfile%get_idfn(varstrname,file_id,fv3filename)
-       call read_fv3_restart_data3d(varstrname,fv3filename,file_id,wworkvar3d)
+       call read_fv3_restart_data3d(varstrname,fv3filename,file_id,workvar3d)
       do k=1,nlevs
           nn = nn_tile0
       do j=1,ny_res
@@ -761,11 +810,9 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
          enddo
       enddo
       enddo
-      wworkvar3d(1:nx_res,:,:)=wworkvar3d(1:nx_res,:,:)+workinc3d
-      wworkvar3d(nx_res+1,:,:)=wworkvar3d(nx_res,:,:)
-       call write_fv3_restart_data3d(varstrname,fv3filename,file_id,wworkvar3d)
+      workvar3d=workvar3d+workinc3d
+      call write_fv3_restart_data3d(varstrname,fv3filename,file_id,workvar3d)
 
-       deallocate(wworkvar3d)
     endif
 
     if (tv_ind > 0.or.tsen_ind>0 ) then
@@ -1002,6 +1049,37 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
        call write_fv3_restart_data3d(varstrname,fv3filename,file_id,workvar3d)
 
     endif
+    if (dbz_ind > 0) then
+       varstrname = 'ref_f3d'
+       allocate(workvar3d_tmp(nx_res-6,ny_res-6,nlevs))
+       varstrname = 'ref_f3d'
+       call fv3lamfile%get_idfn(varstrname,file_id,fv3filename)
+       call read_fv3_restart_data3d(varstrname,fv3filename,file_id,workvar3d_tmp)
+
+       workvar3d = 0.0_r_kind
+       workvar3d(4:nx_res-3,4:ny_res-3,1:nlevs)=workvar3d_tmp
+       where( workvar3d < 0.0_r_kind )
+         workvar3d = 0.0_r_kind
+       end where
+       do k=1,nlevs
+         nn = nn_tile0
+         do j=1,ny_res
+           do i=1,nx_res
+             nn=nn+1
+             workinc3d(i,j,nlevs+1-k)=vargrid(nn,levels(dbz_ind-1)+k,nb,ne)
+           enddo
+         enddo
+       enddo
+       workvar3d=workvar3d+workinc3d
+       workvar3d_tmp = workvar3d(4:nx_res-3,4:ny_res-3,1:nlevs)
+       where( workvar3d_tmp < 0.0_r_kind )
+           workvar3d_tmp = 0.0_r_kind
+       end where
+       call write_fv3_restart_data3d(varstrname,fv3filename,file_id,workvar3d_tmp)
+
+       deallocate(workvar3d_tmp)
+
+    endif
 
     if (ps_ind > 0) then
       allocate(workprsi(nx_res,ny_res,nlevsp1))
@@ -1049,7 +1127,8 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
       call nc_check( nf90_close(file_id),&
         myname_,'close '//trim(filename) )
     else
-      do ifile=1,2
+      do ifile=1,3
+        if(dbz_ind <= 0 .and. ifile == 3) cycle 
         file_id=fv3lamfile%fv3lam_fileid(ifile)
         filename=fv3lamfile%fv3lamfilename(ifile)
         call nc_check( nf90_close(file_id),&
@@ -1146,18 +1225,20 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
     real(r_single), dimension(npts,ndim,nbackgrounds,1), intent(inout) :: grdin
     logical, intent(in) :: no_inflate_flag
   end subroutine writegriddata_pnc
-  subroutine type_bound_setupfile(this,fileid1,fv3fn1,fileid2,fv3fn2)
+  subroutine type_bound_setupfile(this,fileid1,fv3fn1,fileid2,fv3fn2,fileid3,fv3fn3)
        class (type_fv3lamfile) :: this  
        integer(i_kind) fileid1
-       integer(i_kind), optional :: fileid2
+       integer(i_kind), optional :: fileid2,fileid3
        character(len=*)::fv3fn1
-       character(len=*),optional ::fv3fn2
+       character(len=*),optional ::fv3fn2,fv3fn3
        if (present (fileid2)) then
          this%l_filecombined=.false. 
          this%fv3lamfilename(1)=trim(fv3fn1)
          this%fv3lamfilename(2)=trim(fv3fn2)
+         this%fv3lamfilename(3)=trim(fv3fn3)
          this%fv3lam_fileid(1)=fileid1
          this%fv3lam_fileid(2)=fileid2
+         this%fv3lam_fileid(3)=fileid3
        else
          this%l_filecombined=.true. 
          this%fv3lamfilename(1)=fv3fn1
@@ -1175,6 +1256,9 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
      else if(ifindstrloc(vartracers,vnamloc)> 0)  then  
        fv3fn=trim(this%fv3lamfilename(2))
        fileid=this%fv3lam_fileid(2)
+     else if(ifindstrloc(varphysics,vnamloc)> 0)  then  
+       fv3fn=trim(this%fv3lamfilename(3))
+       fileid=this%fv3lam_fileid(3)
      else
        write(6,*)"the varname ",trim(vnamloc)," is not recognized in the ype_bound_getidfn, stop"
        call stop2(23)
