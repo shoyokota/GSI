@@ -1453,11 +1453,19 @@ subroutine setupdbz(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,radardbz_d
 ! Write information to diagnostic file
   if(radardbz_diagsave  .and. ii>0 )then
 
-   if( .not. l_use_dbz_directDA )then
-     write(7)'dbz',nchar,nreal,ii,mype,ioff0
-     write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
-     deallocate(cdiagbuf,rdiagbuf)
-   else
+! DCD 25 May 2022:  When the following if test returns "true", reflectivity diagnostics are written to
+! the same diag file as for the conventional observations.  However, separate conventional and reflectivity
+! diagnostic files are what we typically want for EnKF assimilation, i.e., conventional observations
+! are assimilated in the first execution of EnKF and then reflectivity observations are assimilated
+! in a second execution of EnKF.  It's unclear why the following if test appears
+! in the EMC master GSI.  For now, I've commented out this if test so that we'll always have
+! the separate conventional and reflectivity diag files needed for a two-step EnKF analysis.
+
+!   if( .not. l_use_dbz_directDA )then
+!     write(7)'dbz',nchar,nreal,ii,mype,ioff0
+!     write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
+!     deallocate(cdiagbuf,rdiagbuf)
+!   else
 
      write(string,600) jiter
 600  format('radardbz_',i2.2)
@@ -1472,6 +1480,7 @@ subroutine setupdbz(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,radardbz_d
            open(lu_diag,file=trim(diag_file),form='unformatted',status='unknown',position='rewind')
         endif
      endif
+
      if(init_pass .and. mype == 0) then
         if ( .not. l_use_dbz_directDA ) then    ! EnKF uses these diagnostics and EnKF uses single OBS file for now.
            write(lu_diag) ianldate          ! So do not write analysis date for binary in case of using direct reflectivity DA.
@@ -1484,7 +1493,7 @@ subroutine setupdbz(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,radardbz_d
      write(lu_diag)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
      deallocate(cdiagbuf,rdiagbuf)
      close(lu_diag)
-   end if
+   ! end if
   end if
   write(6,*)'mype, irefsmlobs,irejrefsmlobs are ',mype,' ',irefsmlobs, ' ',irejrefsmlobs
 ! close(52) !simulated obs

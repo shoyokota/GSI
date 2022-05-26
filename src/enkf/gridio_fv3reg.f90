@@ -1235,10 +1235,12 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
          this%l_filecombined=.false. 
          this%fv3lamfilename(1)=trim(fv3fn1)
          this%fv3lamfilename(2)=trim(fv3fn2)
-         this%fv3lamfilename(3)=trim(fv3fn3)
          this%fv3lam_fileid(1)=fileid1
          this%fv3lam_fileid(2)=fileid2
-         this%fv3lam_fileid(3)=fileid3
+         if (present (fileid3)) then
+           this%fv3lamfilename(3)=trim(fv3fn3)
+           this%fv3lam_fileid(3)=fileid3
+         endif
        else
          this%l_filecombined=.true. 
          this%fv3lamfilename(1)=fv3fn1
