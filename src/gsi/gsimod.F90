@@ -1934,7 +1934,7 @@
     ! skipped in case of direct reflectivity DA because it works in Envar and hybrid
     if ( .not.l_use_rw_columntilt .or. .not.l_use_dbz_directDA) then
        do i=1,ndat
-          if ( index(dtype(i), 'dbz') /= 0 )then
+          if ( if_model_dbz .and. ( index(dtype(i), 'dbz') /= 0 ) ) then
              write(6,*)'beta_s0 needs to be set to zero in this GSI version, when reflectivity is directly assimilated. &
                         Static B extended for radar reflectivity assimilation will be included in future version.'
              call stop2(8888)
