@@ -844,8 +844,12 @@ subroutine read_fv3_netcdf_guess(fv3filenamegin)
          endif ! iqr is the inital qr, need not to be in IO 
        endif
       end do 
-      if (iuv /= 2.or. ndynvario3d<=0.or.ntracerio3d<=0.or.nphyvario3d<=0 ) then
+      if (iuv /= 2.or. ndynvario3d<=0.or.ntracerio3d<=0) then
         write(6,*)"the set up for met variable is not as expected, abort"
+        call stop2(222)
+      endif
+      if (if_model_dbz.and.nphyvario3d<=0 ) then
+        write(6,*)"the set up for physics met variable is not as expected, abort"
         call stop2(222)
       endif
       if (fv3sar_bg_opt == 0.and.ifindstrloc(name_metvars3d,'delp') <= 0)then
@@ -1015,20 +1019,22 @@ subroutine read_fv3_netcdf_guess(fv3filenamegin)
       enddo
       call general_sub2grid_create_info(grd_fv3lam_tracer_ionouv,inner_vars,grd_a%nlat,&
             grd_a%nlon,grd_a%nsig,numfields,regional,names=names,lnames=lnames)
-      inner_vars=1
-      numfields=inner_vars*(nphyvario3d*grd_a%nsig)
-      deallocate(lnames,names)
-      allocate(lnames(1,numfields),names(1,numfields))
-      ilev=1
-      do i=1,nphyvario3d
-        do k=1,grd_a%nsig
-          lnames(1,ilev)=k
-          names(1,ilev)=trim(fv3lam_io_phymetvars3d_nouv(i))
-          ilev=ilev+1
+      if (nphyvario3d > 0) then
+        inner_vars=1
+        numfields=inner_vars*(nphyvario3d*grd_a%nsig)
+        deallocate(lnames,names)
+        allocate(lnames(1,numfields),names(1,numfields))
+        ilev=1
+        do i=1,nphyvario3d
+          do k=1,grd_a%nsig
+            lnames(1,ilev)=k
+            names(1,ilev)=trim(fv3lam_io_phymetvars3d_nouv(i))
+            ilev=ilev+1
+          enddo
         enddo
-      enddo
-      call general_sub2grid_create_info(grd_fv3lam_phyvar_ionouv,inner_vars,grd_a%nlat,&
-            grd_a%nlon,grd_a%nsig,numfields,regional,names=names,lnames=lnames)
+        call general_sub2grid_create_info(grd_fv3lam_phyvar_ionouv,inner_vars,grd_a%nlat,&
+             grd_a%nlon,grd_a%nsig,numfields,regional,names=names,lnames=lnames)
+      endif
 
       inner_vars=2
       numfields=grd_a%nsig
@@ -1091,7 +1097,9 @@ subroutine read_fv3_netcdf_guess(fv3filenamegin)
       if( fv3sar_bg_opt == 0) then 
          call gsi_fv3ncdf_read(grd_fv3lam_dynvar_ionouv,gsibundle_fv3lam_dynvar_nouv,fv3filenamegin%dynvars,fv3filenamegin)
          call gsi_fv3ncdf_read(grd_fv3lam_tracer_ionouv,gsibundle_fv3lam_tracer_nouv,fv3filenamegin%tracers,fv3filenamegin)
-         call gsi_fv3ncdf_read(grd_fv3lam_phyvar_ionouv,gsibundle_fv3lam_phyvar_nouv,fv3filenamegin%phyvars,fv3filenamegin)
+         if (nphyvario3d > 0) then
+           call gsi_fv3ncdf_read(grd_fv3lam_phyvar_ionouv,gsibundle_fv3lam_phyvar_nouv,fv3filenamegin%phyvars,fv3filenamegin)
+         endif
       else
          call gsi_fv3ncdf_read_v1(grd_fv3lam_dynvar_ionouv,gsibundle_fv3lam_dynvar_nouv,fv3filenamegin%dynvars,fv3filenamegin)
          call gsi_fv3ncdf_read_v1(grd_fv3lam_tracer_ionouv,gsibundle_fv3lam_tracer_nouv,fv3filenamegin%tracers,fv3filenamegin)
@@ -2642,8 +2650,10 @@ subroutine wrfv3_netcdf(fv3filenamegin)
                              add_saved,fv3filenamegin%dynvars,fv3filenamegin)
       call gsi_fv3ncdf_write(grd_fv3lam_tracer_ionouv,gsibundle_fv3lam_tracer_nouv, &
                              add_saved,fv3filenamegin%tracers,fv3filenamegin)
-      call gsi_fv3ncdf_write(grd_fv3lam_phyvar_ionouv,gsibundle_fv3lam_phyvar_nouv,&
-                             add_saved,fv3filenamegin%phyvars,fv3filenamegin)
+      if (if_model_dbz) then
+        call gsi_fv3ncdf_write(grd_fv3lam_phyvar_ionouv,gsibundle_fv3lam_phyvar_nouv,&
+                               add_saved,fv3filenamegin%phyvars,fv3filenamegin)
+      endif
       call gsi_fv3ncdf_writeuv(grd_fv3lam_uv,ges_u,ges_v,add_saved,fv3filenamegin)
 
 
