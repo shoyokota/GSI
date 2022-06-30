@@ -151,7 +151,8 @@
                          readin_beta,use_localization_grid,use_gfs_ens,q_hyb_ens,i_en_perts_io, &
                          l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB, &
                          ntotensgrp,nsclgrp,naensgrp,ngvarloc,ntlevs_ens,naensloc, &
-                         i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl,l_timloc_opt
+                         i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl,l_timloc_opt, &
+                         l_both_fv3sar_gfs_ens,n_ens_gfs,n_ens_fv3sar
   use rapidrefresh_cldsurf_mod, only: init_rapidrefresh_cldsurf, &
                             dfi_radar_latent_heat_time_period,metar_impact_radius,&
                             metar_impact_radius_lowcloud,l_gsd_terrain_match_surftobs, &
@@ -1352,7 +1353,7 @@
 !                         =0: cross-scale covariance is retained
 !                         =1: cross-scale covariance is zero
 !
-  namelist/hybrid_ensemble/l_hyb_ens,uv_hyb_ens,q_hyb_ens,aniso_a_en,generate_ens,n_ens,nlon_ens,nlat_ens,jcap_ens,&
+  namelist/hybrid_ensemble/l_hyb_ens,uv_hyb_ens,q_hyb_ens,aniso_a_en,generate_ens,n_ens,l_both_fv3sar_gfs_ens,n_ens_gfs,n_ens_fv3sar,nlon_ens,nlat_ens,jcap_ens,&
                 pseudo_hybens,merge_two_grid_ensperts,regional_ensemble_option,fv3sar_bg_opt,fv3sar_ensemble_opt,full_ensemble,pwgtflg,&
                 jcap_ens_test,beta_s0,beta_e0,s_ens_h,s_ens_v,readin_localization,eqspace_ensgrid,readin_beta,&
                 grid_ratio_ens, &
@@ -1744,6 +1745,22 @@
         c_varqc=c_varqc_new
      end if
   end if
+  if(l_both_fv3sar_gfs_ens) then
+    if(n_ens /= n_ens_gfs + n_ens_fv3sar .or. regional_ensemble_option /= 5 ) then 
+       write(6,*)'the set up for l_both_fv3sar_gfs_ens=.true. is wrong,stop'
+       call stop2(137)
+    endif
+  else
+    if (regional_ensemble_option==5) then 
+     n_ens_gfs=0
+     n_ens_fv3sar=n_ens
+    elseif (regional_ensemble_option==1) then 
+     n_ens_gfs=n_ens
+    else 
+     write(6,*)'n_ens_gfs and n_ens_fv3sar won"t be used if not regional_ensemble_option==5' 
+    endif
+    
+  endif
   if(ltlint) then
      if(vqc .or. njqc .or. nvqc)then
        vqc = .false.

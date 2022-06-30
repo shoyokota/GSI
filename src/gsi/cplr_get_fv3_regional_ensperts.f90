@@ -55,6 +55,7 @@ contains
      use constants, only: zero,one,half,zero_single,rd_over_cp,one_tenth
      use mpimod, only: mpi_comm_world,ierror,mype,npe
      use hybrid_ensemble_parameters, only: n_ens,grd_ens,ens_fast_read
+     use hybrid_ensemble_parameters, only: l_both_fv3sar_gfs_ens, n_ens_gfs,n_ens_fv3sar
      use hybrid_ensemble_parameters, only: ntlevs_ens,ensemble_path
      use control_vectors, only: cvars2d,cvars3d,nc2d,nc3d
      use gsi_bundlemod, only: gsi_bundlecreate
@@ -114,6 +115,18 @@ contains
      
      character(255) ensfilenam_str
      type(type_fv3regfilenameg)::fv3_filename 
+     integer(i_kind):: imem_start,n_fv3sar
+
+     if(n_ens.ne.(n_ens_gfs+n_ens_fv3sar)) then
+        write(6,*)'wrong, the sum of  n_ens_gfs and n_ens_fv3sar not equal n_ens, stop'
+        write(6,*)"n_ens, n_ens_gfs and n_ens_fv3sar are",n_ens, n_ens_gfs , n_ens_fv3sar
+        call stop2(222)
+     endif
+     if(l_both_fv3sar_gfs_ens) then
+        imem_start=n_ens_gfs+1
+     else
+        imem_start=1
+     endif
 
      call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
      ! Allocate bundle to hold mean of ensemble members
@@ -267,7 +280,7 @@ contains
  ! INITIALIZE ENSEMBLE MEAN ACCUMULATORS
         en_bar(m)%values=zero
  
-        do n=1,n_ens
+        do n=imem_start,n_ens
            en_perts(n,1,m)%valuesr4 = zero
         enddo
  
@@ -276,11 +289,11 @@ contains
         kapr=one/rd_over_cp
 
          if( ens_fast_read ) then
-         if(n_ens>npe) then
+         if(n_ens_fv3sar>npe) then
             ens_fast_read=.false.
 130         format('Disabling ens_fast_read because number of ensemble members (',I0,') is greater than number of MPI ranks (',I0,').')
             if(mype==0) then
-               write(6,130) n_ens,npe
+               write(6,130) n_ens_fv3sar,npe
             endif
          endif
          endif ! ens_fast_read
@@ -292,10 +305,11 @@ contains
  !
  ! LOOP OVER ENSEMBLE MEMBERS 
         if( ens_fast_read )then
-          do n=1,n_ens
-             write(ensfilenam_str,22) trim(adjustl(ensemble_path)),ens_fhrlevs(m),n
+          do n_fv3sar=1,n_ens_fv3sar
+             n=n_ens_gfs+n_fv3sar
+             write(ensfilenam_str,22) trim(adjustl(ensemble_path)),ens_fhrlevs(m),n_fv3sar
 22  format(a,'fv3SAR',i2.2,'_ens_mem',i3.3)
-             iope=(n-1)*npe/n_ens
+             iope=(n_fv3sar-1)*npe/n_ens_fv3sar
  ! DEFINE INPUT FILE NAME
              fv3_filename%grid_spec=trim(ensfilenam_str)//'-fv3_grid_spec'
              fv3_filename%ak_bk=trim(ensfilenam_str)//'-fv3_akbk'
@@ -337,8 +351,9 @@ contains
 
  !
  ! LOOP OVER ENSEMBLE MEMBERS 
-        do n=1,n_ens
-           write(ensfilenam_str,22) trim(adjustl(ensemble_path)),ens_fhrlevs(m),n
+        do n_fv3sar=1,n_ens_fv3sar
+           n=n_ens_gfs+n_fv3sar
+           write(ensfilenam_str,22) trim(adjustl(ensemble_path)),ens_fhrlevs(m),n_fv3sar
  ! DEFINE INPUT FILE NAME
            fv3_filename%grid_spec=trim(ensfilenam_str)//'-fv3_grid_spec' !exmaple thinktobe
            fv3_filename%ak_bk=trim(ensfilenam_str)//'-fv3_akbk'
@@ -368,7 +383,7 @@ contains
            end if
 
            if( ens_fast_read )then 
-                iope=(n-1)*npe/n_ens
+                iope=(n_fv3sar-1)*npe/n_ens_fv3sar
                 if(mype==iope) then
                    write(0,'(I0,A,I0,A)') mype,': scatter member ',n,' to other ranks...'
                    if( if_model_dbz )then
@@ -607,7 +622,7 @@ contains
         enddo 
  !
  ! CALCULATE ENSEMBLE MEAN
-        bar_norm = one/float(n_ens)
+        bar_norm = one/float(n_ens_fv3sar)
         en_bar(m)%values=en_bar(m)%values*bar_norm
  
  ! Copy pbar to module array.  ps_bar may be needed for vertical localization
@@ -635,9 +650,9 @@ contains
  !
  !
  ! CONVERT ENSEMBLE MEMBERS TO ENSEMBLE PERTURBATIONS
-        sig_norm=sqrt(one/max(one,n_ens-one))
+        sig_norm=sqrt(one/max(one,n_ens_fv3sar-one))
  
-        do n=1,n_ens
+        do n=imem_start,n_ens
            do i=1,nelen
               en_perts(n,1,m)%valuesr4(i)=(en_perts(n,1,m)%valuesr4(i)-en_bar(m)%values(i))*sig_norm
            end do
