@@ -41,11 +41,9 @@ subroutine get_gefs_for_regional
                      fv3_regional
   use hybrid_ensemble_parameters, only: region_lat_ens,region_lon_ens
   use hybrid_ensemble_parameters, only: en_perts,ps_bar,nelen
-  use hybrid_ensemble_parameters, only: n_ens,grd_ens,grd_a1,grd_e1,p_e2a,uv_hyb_ens,dual_res
-  use hybrid_ensemble_parameters, only: n_ens_gfs
+  use hybrid_ensemble_parameters, only: n_ens_gfs,grd_ens,grd_a1,grd_e1,p_e2a,uv_hyb_ens,dual_res
   use hybrid_ensemble_parameters, only: full_ensemble,q_hyb_ens,l_ens_in_diff_time,write_ens_sprd
   use hybrid_ensemble_parameters, only: ntlevs_ens,ensemble_path,jcap_ens
- !use hybrid_ensemble_parameters, only: add_bias_perturbation
   use control_vectors, only: cvars2d,cvars3d,nc2d,nc3d
   use gsi_bundlemod, only: gsi_bundlecreate
   use gsi_bundlemod, only: gsi_bundle
@@ -231,9 +229,12 @@ subroutine get_gefs_for_regional
      read(10,'(a)',err=20,end=40)filename 
   enddo
 40 n_ens_temp=n-1
-   n_ens_gfs=n_ens_temp
-write(6,*)'the number of ensemble members in the filelist is ',n_ens_temp
-write(6,*)'The n_ens_gfs is adjusted to ',n_ens_gfs
+  if(n_ens_gfs/=n_ens_temp) then
+     n_ens_gfs=n_ens_temp
+     if(mype == 0) then
+         write(6,*)'the n_ens_gfs is adjusted to the actual number of ensemble members ',n_ens_temp
+     endif
+  endif
 
 !    set n_ens_temp depending on if we want to add bias perturbation to the ensemble
 

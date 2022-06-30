@@ -151,8 +151,8 @@
                          readin_beta,use_localization_grid,use_gfs_ens,q_hyb_ens,i_en_perts_io, &
                          l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB, &
                          ntotensgrp,nsclgrp,naensgrp,ngvarloc,ntlevs_ens,naensloc, &
-                         i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl,l_timloc_opt, &
-                         l_both_fv3sar_gfs_ens,n_ens_gfs,n_ens_fv3sar
+                         i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl,l_timloc_opt
+  use hybrid_ensemble_parameters,only : l_both_fv3sar_gfs_ens,n_ens_gfs,n_ens_fv3sar
   use rapidrefresh_cldsurf_mod, only: init_rapidrefresh_cldsurf, &
                             dfi_radar_latent_heat_time_period,metar_impact_radius,&
                             metar_impact_radius_lowcloud,l_gsd_terrain_match_surftobs, &
@@ -1752,12 +1752,13 @@
     endif
   else
     if (regional_ensemble_option==5) then 
-     n_ens_gfs=0
-     n_ens_fv3sar=n_ens
+       n_ens_gfs=0
+       n_ens_fv3sar=n_ens
     elseif (regional_ensemble_option==1) then 
-     n_ens_gfs=n_ens
+       n_ens_gfs=n_ens
+       n_ens_fv3sar=0
     else 
-     write(6,*)'n_ens_gfs and n_ens_fv3sar won"t be used if not regional_ensemble_option==5' 
+       write(6,*)'n_ens_gfs and n_ens_fv3sar won"t be used if not regional_ensemble_option==5' 
     endif
     
   endif

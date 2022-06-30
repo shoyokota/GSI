@@ -117,7 +117,7 @@ contains
      type(type_fv3regfilenameg)::fv3_filename 
      integer(i_kind):: imem_start,n_fv3sar
 
-     if(n_ens.ne.(n_ens_gfs+n_ens_fv3sar)) then
+     if(n_ens/=(n_ens_gfs+n_ens_fv3sar)) then
         write(6,*)'wrong, the sum of  n_ens_gfs and n_ens_fv3sar not equal n_ens, stop'
         write(6,*)"n_ens, n_ens_gfs and n_ens_fv3sar are",n_ens, n_ens_gfs , n_ens_fv3sar
         call stop2(222)
@@ -252,6 +252,7 @@ contains
           call stop2(9991)
        endif
     enddo ! for m 
+   
 
      ! print info message for dirZDA
     if(mype==0)then
