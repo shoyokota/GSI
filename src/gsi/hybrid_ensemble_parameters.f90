@@ -118,6 +118,19 @@ module hybrid_ensemble_parameters
 !      ensemble_path: path to ensemble members; default './'
 !      ens_fast_read: read ensemble in parallel; default '.false.'
 !      sst_staticB:   if .true. (default) uses only static part of B error covariance for SST
+!      nsclgrp:         number of scale-dependent localization scales
+!      l_timloc_opt:    if true, then turn on temporal localization option
+!      ngvarloc:        number of variable-dependent localization scales
+!      naensloc:        number of total spatial localization scales (should be >= naensgrp+nsclgrp-1)
+!      i_ensloccov4tim: flag of cross-temporal localization
+!                         =0: cross-temporal covariance is retained
+!                         =1: cross-temporal covariance is zero
+!      i_ensloccov4var: flag of cross-variable localization
+!                         =0: cross-variable covariance is retained
+!                         =1: cross-variable covariance is zero
+!      i_ensloccov4scl: flag of cross-scale localization
+!                         =0: cross-scale covariance is retained
+!                         =1: cross-scale covariance is zero
 !=====================================================================================================
 !
 !
@@ -291,10 +304,18 @@ module hybrid_ensemble_parameters
   public :: en_perts,ps_bar
   public :: region_lat_ens,region_lon_ens
   public :: region_dx_ens,region_dy_ens
+  public :: naensgrp,ntotensgrp,nsclgrp,naensloc,ngvarloc
+  public :: ensgrp2aensgrp
+  public :: ensloccov4tim,ensloccov4var,ensloccov4scl
+  public :: alphacvarsclgrpmat
+  public :: l_timloc_opt
+  public :: i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl
+  public :: idaen3d,idaen2d
   public :: ens_fast_read
   public :: sst_staticB
 
   logical l_hyb_ens,uv_hyb_ens,q_hyb_ens,oz_univ_static,sst_staticB
+  logical l_timloc_opt
   logical aniso_a_en
   logical full_ensemble,pwgtflg
   logical generate_ens
@@ -312,11 +333,16 @@ module hybrid_ensemble_parameters
   logical ens_fast_read
   integer(i_kind) i_en_perts_io
   integer(i_kind) n_ens,nlon_ens,nlat_ens,jcap_ens,jcap_ens_test
-  real(r_kind) beta_s0,beta_e0,s_ens_h,s_ens_v,grid_ratio_ens
+  real(r_kind) beta_s0,beta_e0,grid_ratio_ens
+  integer(i_kind),parameter::max_naensloc=20
+  integer(i_kind),parameter::max_nvars=100
+  real(r_kind) s_ens_h(max_naensloc)
+  real(r_kind) s_ens_v(max_naensloc)
   type(sub2grid_info),save :: grd_ens,grd_loc,grd_sploc,grd_anl,grd_e1,grd_a1
   type(spec_vars),save :: sp_ens,sp_loc
   type(egrid2agrid_parm),save :: p_e2a,p_sploc2ens
-  real(r_kind),allocatable,dimension(:) :: s_ens_hv,s_ens_vv
+  real(r_kind),allocatable,dimension(:,:) :: s_ens_vv
+  real(r_kind),allocatable,dimension(:,:) :: s_ens_hv
   real(r_kind),allocatable,dimension(:) :: sqrt_beta_s,sqrt_beta_e
   real(r_kind),allocatable,dimension(:) :: beta_s,beta_e
   real(r_kind),allocatable,dimension(:,:,:) :: pwgt
@@ -331,6 +357,18 @@ module hybrid_ensemble_parameters
   integer(i_kind) regional_ensemble_option
   integer(i_kind) fv3sar_ensemble_opt 
   character(len=512),save :: ensemble_path
+  real(r_kind),allocatable,dimension(:,:) :: alphacvarsclgrpmat
+  integer(i_kind),allocatable,dimension(:,:,:) :: ensgrp2aensgrp
+  integer(i_kind),allocatable,dimension(:) :: ensloccov4tim,ensloccov4var,ensloccov4scl
+  integer(i_kind) :: nsclgrp=1
+  integer(i_kind) :: naensgrp=1
+  integer(i_kind) :: ntotensgrp=1
+  integer(i_kind) :: naensloc=1
+  integer(i_kind) :: ngvarloc=1
+  integer(i_kind) :: i_ensloccov4tim=0
+  integer(i_kind) :: i_ensloccov4var=0
+  integer(i_kind) :: i_ensloccov4scl=0
+  integer(i_kind),allocatable,dimension(:) :: idaen3d,idaen2d
 
 ! following is for storage of ensemble perturbations:
 
@@ -338,7 +376,7 @@ module hybrid_ensemble_parameters
 !   def nelen               - length of one ensemble perturbation vector
 
   integer(i_kind) nelen
-  type(gsi_bundle),save,allocatable :: en_perts(:,:)
+  type(gsi_bundle),save,allocatable :: en_perts(:,:,:)
   real(r_single),dimension(:,:,:),allocatable:: ps_bar
 
 !    following is for interpolation of global ensemble to regional ensemble grid
@@ -378,6 +416,7 @@ subroutine init_hybrid_ensemble_parameters
   implicit none
 
   l_hyb_ens=.false.
+  l_timloc_opt=.false.
   full_ensemble=.false.
   pwgtflg=.false.
   uv_hyb_ens=.false.
@@ -425,15 +464,23 @@ subroutine create_hybens_localization_parameters
   use constants, only: zero
   implicit none
   
-  allocate( s_ens_hv(grd_ens%nsig),s_ens_vv(grd_ens%nsig) )
+  allocate( s_ens_hv(grd_ens%nsig,naensloc),s_ens_vv(grd_ens%nsig,naensloc) )
   allocate( beta_s(grd_ens%nsig),beta_e(grd_ens%nsig))
   allocate( sqrt_beta_s(grd_ens%nsig),sqrt_beta_e(grd_ens%nsig) )
   allocate( pwgt(grd_ens%lat2,grd_ens%lon2,grd_ens%nsig) )
+  allocate( alphacvarsclgrpmat(naensgrp,naensgrp) )
+  allocate( ensgrp2aensgrp(ntotensgrp,max_nvars,ntlevs_ens) )
+  allocate( ensloccov4tim(ntlevs_ens),ensloccov4var(ngvarloc),ensloccov4scl(nsclgrp) )
   beta_s  =one
   beta_e  =zero
   sqrt_beta_s=one
   sqrt_beta_e=zero
   pwgt=zero
+  alphacvarsclgrpmat=one
+  ensgrp2aensgrp=1
+  ensloccov4tim=1.0
+  ensloccov4var=1.0
+  ensloccov4scl=1.0
   
 end subroutine create_hybens_localization_parameters
 
@@ -443,6 +490,8 @@ subroutine destroy_hybens_localization_parameters
   deallocate(s_ens_vv,s_ens_hv) 
   deallocate(beta_s,beta_e)
   deallocate(sqrt_beta_s,sqrt_beta_e,pwgt)
+  deallocate(alphacvarsclgrpmat)
+  deallocate(ensgrp2aensgrp)
 
 end subroutine destroy_hybens_localization_parameters
 

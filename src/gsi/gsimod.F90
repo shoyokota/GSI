@@ -149,7 +149,9 @@
                          beta_s0,beta_e0,s_ens_h,s_ens_v,init_hybrid_ensemble_parameters,&
                          readin_localization,write_ens_sprd,eqspace_ensgrid,grid_ratio_ens,&
                          readin_beta,use_localization_grid,use_gfs_ens,q_hyb_ens,i_en_perts_io, &
-                         l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB
+                         l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB, &
+                         ntotensgrp,nsclgrp,naensgrp,ngvarloc,ntlevs_ens,naensloc, &
+                         i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl,l_timloc_opt
   use rapidrefresh_cldsurf_mod, only: init_rapidrefresh_cldsurf, &
                             dfi_radar_latent_heat_time_period,metar_impact_radius,&
                             metar_impact_radius_lowcloud,l_gsd_terrain_match_surftobs, &
@@ -1336,14 +1338,27 @@
 !     ensemble_path - path to ensemble members; default './'
 !     ens_fast_read - read ensemble in parallel; default '.false.'
 !     sst_staticB - use only static background error covariance for SST statistic
-!              
-!                         
+!     nsclgrp - number of scale-dependent localization scales
+!     l_timloc_opt - if true, then turn on temporal localization option
+!     ngvarloc - number of variable-dependent localization scales
+!     naensloc - number of total spatial localization scales (should be >= naensgrp+nsclgrp-1)
+!     i_ensloccov4tim - flag of cross-temporal localization
+!                         =0: cross-temporal covariance is retained
+!                         =1: cross-temporal covariance is zero
+!     i_ensloccov4var - flag of cross-variable localization
+!                         =0: cross-variable covariance is retained
+!                         =1: cross-variable covariance is zero
+!     i_ensloccov4scl - flag of cross-scale localization
+!                         =0: cross-scale covariance is retained
+!                         =1: cross-scale covariance is zero
+!
   namelist/hybrid_ensemble/l_hyb_ens,uv_hyb_ens,q_hyb_ens,aniso_a_en,generate_ens,n_ens,nlon_ens,nlat_ens,jcap_ens,&
                 pseudo_hybens,merge_two_grid_ensperts,regional_ensemble_option,fv3sar_bg_opt,fv3sar_ensemble_opt,full_ensemble,pwgtflg,&
                 jcap_ens_test,beta_s0,beta_e0,s_ens_h,s_ens_v,readin_localization,eqspace_ensgrid,readin_beta,&
                 grid_ratio_ens, &
                 oz_univ_static,write_ens_sprd,use_localization_grid,use_gfs_ens, &
-                i_en_perts_io,l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB
+                i_en_perts_io,l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB, &
+                nsclgrp,l_timloc_opt,ngvarloc,naensloc,i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl
 
 ! rapidrefresh_cldsurf (options for cloud analysis and surface 
 !                             enhancement for RR appilcation  ):
@@ -1772,6 +1787,16 @@
      write(6,*)'gsimod: analysis error estimate requires congrad',jsiga,lcongrad
      call stop2(137)
   endif
+
+  ntotensgrp=nsclgrp*ngvarloc
+  if(l_timloc_opt) then
+     naensgrp=ntotensgrp*ntlevs_ens
+  else
+     naensgrp=ntotensgrp
+  endif
+  if(naensloc.lt.naensgrp+nsclgrp-1) naensloc=naensgrp+nsclgrp-1
+  if(mype==0) write(6,*) 'in gsimod: naensgrp,ntotensgrp,nsclgrp,ngvarloc,ntlevs_ens= ', &
+                          naensgrp,ntotensgrp,nsclgrp,ngvarloc,ntlevs_ens
 
   call gsi_4dcoupler_setservices(rc=ier)
   if(ier/=0) call die(myname_,'gsi_4dcoupler_setServices(), rc =',ier)
