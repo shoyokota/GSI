@@ -813,7 +813,7 @@ subroutine normal_new_factorization_rf_z
 
   use kinds, only: r_kind,i_kind
   use hybrid_ensemble_parameters, only: grd_ens
-  use hybrid_ensemble_parameters, only: naensloc
+  use hybrid_ensemble_parameters, only: naensgrp,naensloc
   use constants, only: zero,one
   implicit none
 
@@ -827,7 +827,7 @@ subroutine normal_new_factorization_rf_z
 
   znorm_new=one
 
-  do ig=1,naensloc
+  do ig=1,naensgrp
      do k=1,grd_ens%nsig
         f=zero
         f(:,k)=one
@@ -894,7 +894,7 @@ subroutine normal_new_factorization_rf_x
 
   use kinds, only: r_kind,i_kind
   use hybrid_ensemble_parameters, only: grd_loc,vvlocal
-  use hybrid_ensemble_parameters, only: naensloc
+  use hybrid_ensemble_parameters, only: naensgrp,naensloc
   use constants, only: zero,one
 
   implicit none
@@ -920,7 +920,7 @@ subroutine normal_new_factorization_rf_x
   allocate(diag(grd_loc%nlat,grd_loc%nlon,kl))
   xnorm_new=one
 
-  do ig=1,naensloc
+  do ig=1,naensgrp
      do j=1,grd_loc%nlon
         f=zero
         do k=1,kl
@@ -998,7 +998,7 @@ subroutine normal_new_factorization_rf_y
 
   use kinds, only: r_kind,i_kind
   use hybrid_ensemble_parameters, only: grd_loc,vvlocal
-  use hybrid_ensemble_parameters, only: naensloc
+  use hybrid_ensemble_parameters, only: naensgrp,naensloc
   use constants, only: zero,one
   implicit none
 
@@ -1034,7 +1034,7 @@ subroutine normal_new_factorization_rf_y
     iend=grd_loc%nlon 
   endif
               
-  do ig=1,naensloc
+  do ig=1,naensgrp
      do loop=1,lend
         ll=(loop-1)*iend
         f=zero
