@@ -24,7 +24,7 @@
 
   use obsmod, only: doradaroneob,oneoblat,oneoblon,oneobheight,oneobvalue,oneobddiff,oneobradid,&
      radar_no_thinning,ens_hx_dbz_cut,static_gsi_nopcp_dbz,rmesh_dbz,&
-     rmesh_vr,zmesh_dbz,zmesh_vr,if_vterminal, if_model_dbz,if_vrobs_raw,&
+     rmesh_vr,zmesh_dbz,zmesh_vr,if_vterminal, if_model_dbz,if_vrobs_raw,if_use_w_vr,&
      minobrangedbz,maxobrangedbz,maxobrangevr,maxtiltvr,missing_to_nopcp,&
      ntilt_radarfiles,whichradar,&
      minobrangevr,maxtiltdbz,mintiltvr,mintiltdbz,l2rwthin,hurricane_radar 
@@ -749,7 +749,7 @@
        oneoblon,oneobheight,oneobvalue,oneobddiff,oneobradid,&
        rmesh_vr,zmesh_dbz,zmesh_vr, ntilt_radarfiles, whichradar,&
        radar_no_thinning,ens_hx_dbz_cut,static_gsi_nopcp_dbz,rmesh_dbz,&
-       minobrangevr, maxtiltdbz, mintiltvr,mintiltdbz,if_vterminal,if_vrobs_raw,&
+       minobrangevr, maxtiltdbz, mintiltvr,mintiltdbz,if_vterminal,if_vrobs_raw,if_use_w_vr,&
        if_model_dbz,imp_physics,lupp,netcdf_diag,binary_diag,l_wcp_cwm,aircraft_recon,diag_version,&
        write_fv3_incr,incvars_to_zero,incvars_zero_strat,incvars_efold,diag_version,&
        cao_check,lcalc_gfdl_cfrac,tau_fcst,efsoi_order,lupdqc,lqcoef,cnvw_option,l2rwthin,hurricane_radar,&
