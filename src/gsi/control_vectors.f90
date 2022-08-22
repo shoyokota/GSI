@@ -296,7 +296,6 @@ subroutine init_anacv
 !   language: f90
 !   machine:  ibm rs/6000 sp
 !
-use hybrid_ensemble_parameters,only:ngvarloc
 use hybrid_ensemble_parameters,only:idaen3d,idaen2d
 implicit none
 !character(len=*),parameter:: rcname='anavinfo.txt'
@@ -388,26 +387,20 @@ do ii=1,nvars
    else
       an_amp0(ii)=one/three
    endif
-   if(ngvarloc.gt.1) then !now only consider ngvarloc=2 if it is not 1
-      if(itracer.gt.10) then
-         if(ilev.gt.1) then
-            idaen3d(nc3d)=2
-         else
-            idaen2d(nc2d)=2
-         endif
+   if(itracer.gt.10) then
+      if(ilev.gt.1) then
+         idaen3d(nc3d)=2
       else
-         if(ilev.gt.1) then
-            idaen3d(nc3d)=1
-         else
-            idaen2d(nc2d)=1
-         endif
+         idaen2d(nc2d)=2
+      endif
+   else
+      if(ilev.gt.1) then
+         idaen3d(nc3d)=1
+      else
+         idaen2d(nc2d)=1
       endif
    endif
 enddo
-if(ngvarloc.eq.1) then
-   idaen3d=1
-   idaen2d=1
-endif
 
 deallocate(utable)
 

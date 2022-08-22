@@ -4141,7 +4141,7 @@ subroutine hybens_localization_setup
    use hybrid_ensemble_parameters, only: readin_beta,beta_s,beta_e,beta_s0,beta_e0,sqrt_beta_s,sqrt_beta_e
    use hybrid_ensemble_parameters, only: readin_localization,create_hybens_localization_parameters, &
                                          vvlocal,s_ens_h,s_ens_hv,s_ens_v,s_ens_vv
-   use hybrid_ensemble_parameters, only: naensgrp,naensloc,ntlevs_ens,nsclgrp
+   use hybrid_ensemble_parameters, only: ntotensgrp,naensgrp,naensloc,ntlevs_ens,nsclgrp
    use hybrid_ensemble_parameters, only: en_perts
    use gsi_io, only: verbose
 
@@ -4285,7 +4285,7 @@ subroutine hybens_localization_setup
       call init_sf_xy(jcap_ens)
    endif
 
-   if(nsclgrp.gt.1) then
+   if(ntotensgrp.gt.1) then
       call gsi_bundlegetpointer(en_perts(1,1,1),cvars3d,ipc3d,istatus)
       if(istatus/=0) then
          write(6,*) myname_,': cannot find 3d pointers'
@@ -4296,58 +4296,67 @@ subroutine hybens_localization_setup
          write(6,*) myname_,': cannot find 2d pointers'
          call stop2(999)
       endif
-      call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
-      allocate(values(grd_ens%latlon11*grd_ens%nsig*n_ens))
-      do ig=1,nsclgrp-1
-         ii=0
-         do n=1,n_ens
-            a_en(n)%values => values(ii+1:ii+grd_ens%latlon11*grd_ens%nsig)
-            call gsi_bundleset(a_en(n),grid_ens,'Ensemble Bundle',istatus,names3d=(/'a_en'/),bundle_kind=r_kind)
-            if (istatus/=0) then
-               write(6,*) myname_,': error alloc(ensemble bundle)'
-               call stop2(999)
-            endif
-            ii=ii+grd_ens%latlon11*grd_ens%nsig
+      if(nsclgrp.gt.1) then
+         call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
+         allocate(values(grd_ens%latlon11*grd_ens%nsig*n_ens))
+         do ig=1,nsclgrp-1
+            ii=0
+            do n=1,n_ens
+               a_en(n)%values => values(ii+1:ii+grd_ens%latlon11*grd_ens%nsig)
+               call gsi_bundleset(a_en(n),grid_ens,'Ensemble Bundle',istatus,names3d=(/'a_en'/),bundle_kind=r_kind)
+               if (istatus/=0) then
+                  write(6,*) myname_,': error alloc(ensemble bundle)'
+                  call stop2(999)
+               endif
+               ii=ii+grd_ens%latlon11*grd_ens%nsig
+            enddo
+            do m=1,ntlevs_ens
+               do n=1,n_ens
+                  en_perts(n,ig+1,m)%valuesr4=en_perts(n,ig,m)%valuesr4
+               enddo
+               do ic3=1,nc3d
+                  ipic=ipc3d(ic3)
+                  do n=1,n_ens
+                     do k=1,grd_ens%nsig
+                        a_en(n)%r3(1)%q(:,:,k)=en_perts(n,ig,m)%r3(ipic)%qr4(:,:,k)
+                     enddo
+                  enddo
+                  call bkgcov_a_en_new_factorization(naensgrp+ig,a_en)
+                  do n=1,n_ens
+                     do k=1,grd_ens%nsig
+                        en_perts(n,ig,m)%r3(ipic)%qr4(:,:,k)=a_en(n)%r3(1)%q(:,:,k)
+                     enddo
+                  enddo
+               enddo
+               do ic2=1,nc2d
+                  ipic=ipc2d(ic2)
+                  do n=1,n_ens
+                     do k=1,grd_ens%nsig
+                        a_en(n)%r3(1)%q(:,:,k)=en_perts(n,ig,m)%r2(ipic)%qr4(:,:)
+                     enddo
+                  enddo
+                  call bkgcov_a_en_new_factorization(naensgrp+ig,a_en)
+                  do n=1,n_ens
+                     en_perts(n,ig,m)%r2(ipic)%qr4(:,:)=a_en(n)%r3(1)%q(:,:,1)
+                  enddo
+               enddo
+               do n=1,n_ens
+                  en_perts(n,ig+1,m)%valuesr4=en_perts(n,ig+1,m)%valuesr4-en_perts(n,ig,m)%valuesr4
+               enddo
+            enddo
+            do n=1,n_ens
+               call gsi_bundleunset(a_en(n),istatus)
+            enddo
          enddo
+         deallocate(values)
+      endif
+      do ig=nsclgrp+1,ntotensgrp
          do m=1,ntlevs_ens
             do n=1,n_ens
-               en_perts(n,ig+1,m)%valuesr4=en_perts(n,ig,m)%valuesr4
+               en_perts(n,ig,m)%valuesr4=en_perts(n,ig-nsclgrp,m)%valuesr4
             enddo
-            do ic3=1,nc3d
-               ipic=ipc3d(ic3)
-               do n=1,n_ens
-                  do k=1,grd_ens%nsig
-                     a_en(n)%r3(1)%q(:,:,k)=en_perts(n,ig,m)%r3(ipic)%qr4(:,:,k)
-                  enddo
-               enddo
-               call bkgcov_a_en_new_factorization(naensgrp+ig,a_en)
-               do n=1,n_ens
-                  do k=1,grd_ens%nsig
-                     en_perts(n,ig,m)%r3(ipic)%qr4(:,:,k)=a_en(n)%r3(1)%q(:,:,k)
-                  enddo
-               enddo
-            enddo
-            do ic2=1,nc2d
-               ipic=ipc2d(ic2)
-               do n=1,n_ens
-                  do k=1,grd_ens%nsig
-                     a_en(n)%r3(1)%q(:,:,k)=en_perts(n,ig,m)%r2(ipic)%qr4(:,:)
-                  enddo
-               enddo
-               call bkgcov_a_en_new_factorization(naensgrp+ig,a_en)
-               do n=1,n_ens
-                  en_perts(n,ig,m)%r2(ipic)%qr4(:,:)=a_en(n)%r3(1)%q(:,:,1)
-               enddo
-            enddo
-            do n=1,n_ens
-               en_perts(n,ig+1,m)%valuesr4=en_perts(n,ig+1,m)%valuesr4-en_perts(n,ig,m)%valuesr4
-            enddo
-         enddo
-         do n=1,n_ens
-            call gsi_bundleunset(a_en(n),istatus)
          enddo
       enddo
-      deallocate(values)
    endif
 
    !!!!!!!! setup beta_s, beta_e!!!!!!!!!!!!
@@ -5419,8 +5428,12 @@ subroutine setup_ensgrp2aensgrp
   ensgrp2aensgrp=-999
   do ibin=1,ntlevs_ens
      do ic=1,nc3d+nc2d
-        if(ic.le.nc3d) ivargrp=idaen3d(ic)
-        if(ic.gt.nc3d) ivargrp=idaen2d(ic-nc3d)
+        if(ngvarloc.gt.1) then
+           if(ic.le.nc3d) ivargrp=idaen3d(ic)
+           if(ic.gt.nc3d) ivargrp=idaen2d(ic-nc3d)
+        else
+           ivargrp=1
+        endif
         do iscl=1,nsclgrp
            ig=(ivargrp-1)*nsclgrp+iscl
            ensgrp2aensgrp(ig,ic,ibin)=(ibin-1)*interval4aens+(ivargrp-1)*nsclgrp+iscl
