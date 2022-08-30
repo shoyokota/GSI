@@ -363,7 +363,7 @@ module hybrid_ensemble_parameters
   character(len=512),save :: ensemble_path
   real(r_kind),allocatable,dimension(:,:) :: alphacvarsclgrpmat
   integer(i_kind),allocatable,dimension(:,:,:) :: ensgrp2aensgrp
-  integer(i_kind),allocatable,dimension(:) :: ensloccov4tim,ensloccov4var,ensloccov4scl
+  real(r_kind),allocatable,dimension(:) :: ensloccov4tim,ensloccov4var,ensloccov4scl
   integer(i_kind) :: nsclgrp=1
   integer(i_kind) :: naensgrp=1
   integer(i_kind) :: ntotensgrp=1
@@ -485,9 +485,9 @@ subroutine create_hybens_localization_parameters
   pwgt=zero
   alphacvarsclgrpmat=one
   ensgrp2aensgrp=1
-  ensloccov4tim=1.0
-  ensloccov4var=1.0
-  ensloccov4scl=1.0
+  ensloccov4tim=one
+  ensloccov4var=one
+  ensloccov4scl=one
   
 end subroutine create_hybens_localization_parameters
 

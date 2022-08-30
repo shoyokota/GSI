@@ -301,7 +301,7 @@ subroutine en_perts_save
 
   integer(i_kind) ic3,ic2
   integer(i_kind) iunit
-  if(nsclgrp.gt.1) then
+  if(nsclgrp>1) then
     write(6,*)"nsclgrp >1 is not considerred in this part, stop"
     stop
   endif

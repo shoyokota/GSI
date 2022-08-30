@@ -373,12 +373,22 @@ do ii=1,nvars
          cvars2d(nc2d)=trim(adjustl(var))
          nrf2_loc(nc2d)=ii  ! rid of soon
          as2d(nc2d)=aas
+         if(itracer>10) then
+            idaen2d(nc2d)=2
+         else
+            idaen2d(nc2d)=1
+         endif
       else
          nc3d=nc3d+1
          cvars3d(nc3d)=trim(adjustl(var))
          nrf3_loc(nc3d)=ii  ! rid of soon
          nrf_3d(ii)=.true.
          as3d(nc3d)=aas
+         if(itracer>10) then
+            idaen3d(nc3d)=2
+         else
+            idaen3d(nc3d)=1
+         endif
       endif
    endif
    nrf_var(ii)=trim(adjustl(var))
@@ -386,19 +396,6 @@ do ii=1,nvars
       an_amp0(ii)=amp
    else
       an_amp0(ii)=one/three
-   endif
-   if(itracer.gt.10) then
-      if(ilev.gt.1) then
-         idaen3d(nc3d)=2
-      else
-         idaen2d(nc2d)=2
-      endif
-   else
-      if(ilev.gt.1) then
-         idaen3d(nc3d)=1
-      else
-         idaen2d(nc2d)=1
-      endif
    endif
 enddo
 

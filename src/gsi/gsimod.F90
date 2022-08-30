@@ -1811,7 +1811,7 @@
   else
      naensgrp=ntotensgrp
   endif
-  if(naensloc.lt.naensgrp+nsclgrp-1) naensloc=naensgrp+nsclgrp-1
+  if(naensloc<naensgrp+nsclgrp-1) naensloc=naensgrp+nsclgrp-1
   if(mype==0) write(6,*) 'in gsimod: naensgrp,ntotensgrp,nsclgrp,ngvarloc,ntlevs_ens= ', &
                           naensgrp,ntotensgrp,nsclgrp,ngvarloc,ntlevs_ens
 

@@ -400,7 +400,8 @@ subroutine init_rf_x(x_len,kl)
      do k=1,kl
         do i=1,grd_loc%nlat
            do j=1,grd_loc%nlon
-              aspect(j)=(x_len(k,ig)*region_dy_ens(grd_loc%nlat/2,grd_loc%nlon/2)/region_dx_ens(i,j))**2 ! only works for rotated lat-lon grids
+              ! only works for rotated lat-lon grids
+              aspect(j)=(x_len(k,ig)*region_dy_ens(grd_loc%nlat/2,grd_loc%nlon/2)/region_dx_ens(i,j))**2
            enddo
            call get_new_alpha_beta(aspect,grd_loc%nlon,fmatc,fmat0c)
            do kk=1,2
@@ -1204,7 +1205,6 @@ end subroutine normal_new_factorization_rf_y
     use get_fv3_regional_ensperts_mod, only: get_fv3_regional_ensperts_class
     use get_wrf_nmm_ensperts_mod, only: get_wrf_nmm_ensperts_class
     use hybrid_ensemble_parameters, only: region_lat_ens,region_lon_ens
-    use hybrid_ensemble_parameters, only: ntotensgrp
     use mpimod, only: mpi_comm_world
 
     implicit none
@@ -1845,7 +1845,7 @@ end subroutine normal_new_factorization_rf_y
           enddo
           do ig=1,ntotensgrp
              iaens=ensgrp2aensgrp(ig,ic3,ibin)
-             if(iaens.gt.0) then
+             if(iaens>0) then
                 do n=1,n_ens
                    do j=1,jm
                       do i=1,im
@@ -1880,7 +1880,7 @@ end subroutine normal_new_factorization_rf_y
 
              do ig=1,ntotensgrp
                 iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
-                if(iaens.gt.0) then
+                if(iaens>0) then
                    do n=1,n_ens
                       do j=1,jm
                          do k=1,km_tmp
@@ -1898,7 +1898,7 @@ end subroutine normal_new_factorization_rf_y
  
              do ig=1,ntotensgrp
                 iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
-                if(iaens.gt.0) then
+                if(iaens>0) then
                    do n=1,n_ens
                       do j=1,jm
                          do i=1,im
@@ -2022,7 +2022,7 @@ end subroutine normal_new_factorization_rf_y
           enddo
           do ig=1,ntotensgrp
              iaens=ensgrp2aensgrp(ig,ic3,ibin)
-             if(iaens.gt.0) then
+             if(iaens>0) then
                 do n=1,n_ens
                    do j=1,jm
                       do i=1,im
@@ -2056,7 +2056,7 @@ end subroutine normal_new_factorization_rf_y
 
              do ig=1,ntotensgrp
                 iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
-                if(iaens.gt.0) then
+                if(iaens>0) then
                    do n=1,n_ens
                       do k=1,km_tmp
                          do j=1,jm
@@ -2074,7 +2074,7 @@ end subroutine normal_new_factorization_rf_y
 
              do ig=1,ntotensgrp
                 iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
-                if(iaens.gt.0) then
+                if(iaens>0) then
                    do n=1,n_ens
                       do j=1,jm
                          do i=1,im
@@ -2193,7 +2193,7 @@ end subroutine normal_new_factorization_rf_y
        do ig=1,ntotensgrp
           do ic3=1,nc3d
              iaens=ensgrp2aensgrp(ig,ic3,ibin)
-             if(iaens.gt.0) then
+             if(iaens>0) then
                 ipic=ipc3d(ic3)
                 do k=1,km
                    do j=1,jm
@@ -2207,35 +2207,35 @@ end subroutine normal_new_factorization_rf_y
           enddo
           do ic2=1,nc2d
              iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
-             if(iaens.gt.0) then
+             if(iaens>0) then
                 ipic=ipc2d(ic2)
                 select case ( trim(StrUpCase(cvars2d(ic2))) )
  
-                case('PS')
+                   case('PS')
  
-                   if ( pwgtflg ) then
-                      km_tmp = km
-                   else
-                      km_tmp = 1
-                   endif
+                      if ( pwgtflg ) then
+                         km_tmp = km
+                      else
+                         km_tmp = 1
+                      endif
 
-                   do k=1,km_tmp
-                      do j=1,jm
-                         do i=1,im
-                            a_en(iaens,n)%r3(ipx)%q(i,j,k)=a_en(iaens,n)%r3(ipx)%q(i,j,k) &
-                                 +cvec%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
+                      do k=1,km_tmp
+                         do j=1,jm
+                            do i=1,im
+                               a_en(iaens,n)%r3(ipx)%q(i,j,k)=a_en(iaens,n)%r3(ipx)%q(i,j,k) &
+                                    +cvec%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
+                            enddo
                          enddo
                       enddo
-                   enddo
   
-                case('SST')
+                   case('SST')
   
-                   do j=1,jm
-                      do i=1,im
-                         a_en(iaens,n)%r3(ipx)%q(i,j,1)=a_en(iaens,n)%r3(ipx)%q(i,j,1) &
-                              +cvec%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)
+                      do j=1,jm
+                         do i=1,im
+                            a_en(iaens,n)%r3(ipx)%q(i,j,1)=a_en(iaens,n)%r3(ipx)%q(i,j,1) &
+                                 +cvec%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)
+                         enddo
                       enddo
-                   enddo
  
                 end select
              endif ! iaens>0
@@ -2358,7 +2358,7 @@ end subroutine normal_new_factorization_rf_y
        do ig=1,ntotensgrp
           do ic3=1,nc3d
              iaens=ensgrp2aensgrp(ig,ic3,ibin)
-             if(iaens.gt.0) then
+             if(iaens>0) then
                 ipic=ipc3d(ic3)
                 do k=1,km
                    do j=1,jm
@@ -2372,35 +2372,35 @@ end subroutine normal_new_factorization_rf_y
           enddo
           do ic2=1,nc2d
              iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
-             if(iaens.gt.0) then
+             if(iaens>0) then
                 ipic=ipc2d(ic2)
                 select case ( trim(StrUpCase(cvars2d(ic2))) )
 
-                case('PS')
+                   case('PS')
 
-                   if ( pwgtflg ) then
-                      km_tmp = km
-                   else
-                      km_tmp = 1
-                   endif
+                      if ( pwgtflg ) then
+                         km_tmp = km
+                      else
+                         km_tmp = 1
+                      endif
 
-                   do k=1,km_tmp
-                      do j=1,jm
-                         do i=1,im
-                            a_en(iaens,n)%r3(ipx)%q(i,j,k)=a_en(iaens,n)%r3(ipx)%q(i,j,k) &
-                                 +work_ens%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
+                      do k=1,km_tmp
+                         do j=1,jm
+                            do i=1,im
+                               a_en(iaens,n)%r3(ipx)%q(i,j,k)=a_en(iaens,n)%r3(ipx)%q(i,j,k) &
+                                    +work_ens%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
+                            enddo
                          enddo
                       enddo
-                   enddo
 
-                case('SST')
+                   case('SST')
 
-                   do j=1,jm
-                      do i=1,im
-                         a_en(iaens,n)%r3(ipx)%q(i,j,1)=a_en(iaens,n)%r3(ipx)%q(i,j,1) &
-                              +work_ens%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)
+                      do j=1,jm
+                         do i=1,im
+                            a_en(iaens,n)%r3(ipx)%q(i,j,1)=a_en(iaens,n)%r3(ipx)%q(i,j,1) &
+                                 +work_ens%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)
+                         enddo
                       enddo
-                   enddo
 
                 end select
              endif ! iaens>0
@@ -3160,84 +3160,84 @@ subroutine init_sf_xy(jcap_in)
   allocate(pn0_npole(0:sp_loc%jcap))
   allocate(ksame(grd_sploc%nsig))
   do ig=1,naensloc
-  ksame=.false.
-  do k=2,grd_sploc%nsig
-     if(s_ens_hv(k,ig) == s_ens_hv(k-1,ig))ksame(k)=.true.
-  enddo
-  spectral_filter=zero
-  do k=1,grd_sploc%nsig
-     if(ksame(k))then
-        spectral_filter(ig,:,k)=spectral_filter(ig,:,k-1)
-     else
-        do i=1,grd_sploc%nlat
-           f0(i,1)=exp(-half*(rkm(i)/s_ens_hv(k,ig))**2)
-        enddo
-
-        do j=2,grd_sploc%nlon
+     ksame=.false.
+     do k=2,grd_sploc%nsig
+        if(s_ens_hv(k,ig) == s_ens_hv(k-1,ig))ksame(k)=.true.
+     enddo
+     spectral_filter=zero
+     do k=1,grd_sploc%nsig
+        if(ksame(k))then
+           spectral_filter(ig,:,k)=spectral_filter(ig,:,k-1)
+        else
            do i=1,grd_sploc%nlat
-              f0(i,j)=f0(i,1)
+              f0(i,1)=exp(-half*(rkm(i)/s_ens_hv(k,ig))**2)
            enddo
-        enddo
 
-        call general_g2s0(grd_sploc,sp_loc,g,f0)
-
-        call general_s2g0(grd_sploc,sp_loc,g,f)
-
-!       adjust so value at np = 1
-        f=f/f(grd_sploc%nlat,1)
-        f0=f
-        call general_g2s0(grd_sploc,sp_loc,g,f)
-        call general_s2g0(grd_sploc,sp_loc,g,f)
-        if(mype == 0)then
-           nsigend=k
-           do kk=k+1,grd_sploc%nsig
-              if(s_ens_hv(kk,ig) /= s_ens_hv(k,ig))exit
-              nsigend=nsigend+1
+           do j=2,grd_sploc%nlon
+              do i=1,grd_sploc%nlat
+                 f0(i,j)=f0(i,1)
+              enddo
            enddo
-           write(6,900)k,nsigend,sp_loc%jcap,s_ens_hv(k,ig),maxval(abs(f0-f))
-  900      format(' in init_sf_xy, jcap,s_ens_hv(',i5,1x,'-',i5,'), max diff(f0-f)=', &
-                                        i10,f10.2,e20.10)
-        end if
 
-!            correct spectrum by dividing by pn0_npole
-        gsave=g
+           call general_g2s0(grd_sploc,sp_loc,g,f0)
 
-!       obtain pn0_npole
-        do n=0,sp_loc%jcap
-           g=zero
-           g(2*n+1)=one
            call general_s2g0(grd_sploc,sp_loc,g,f)
-           pn0_npole(n)=f(grd_sploc%nlat,1)
-        enddo
-   
-        g=zero
-        do n=0,sp_loc%jcap
-           g(2*n+1)=gsave(2*n+1)/pn0_npole(n)
-        enddo
 
-!       obtain spectral_filter
+!          adjust so value at np = 1
+           f=f/f(grd_sploc%nlat,1)
+           f0=f
+           call general_g2s0(grd_sploc,sp_loc,g,f)
+           call general_s2g0(grd_sploc,sp_loc,g,f)
+           if(mype == 0)then
+              nsigend=k
+              do kk=k+1,grd_sploc%nsig
+                 if(s_ens_hv(kk,ig) /= s_ens_hv(k,ig))exit
+                 nsigend=nsigend+1
+              enddo
+              write(6,900)k,nsigend,sp_loc%jcap,s_ens_hv(k,ig),maxval(abs(f0-f))
+900           format(' in init_sf_xy, jcap,s_ens_hv(',i5,1x,'-',i5,'), max diff(f0-f)=', &
+                                           i10,f10.2,e20.10)
+           end if
 
-        ii=0
-        do l=0,sp_loc%jcap
-           factor=one
-           if(l >  0) factor=half
-           do n=l,sp_loc%jcap
-              ii=ii+1
-              if(sp_loc%factsml(ii)) then
-                 spectral_filter(ig,ii,k)=zero
-              else
-                 spectral_filter(ig,ii,k)=factor*g(2*n+1)
-              end if
-              ii=ii+1
-              if(l == 0 .or. sp_loc%factsml(ii)) then
-                 spectral_filter(ig,ii,k)=zero
-              else
-                 spectral_filter(ig,ii,k)=factor*g(2*n+1)
-              end if
+!          correct spectrum by dividing by pn0_npole
+           gsave=g
+
+!          obtain pn0_npole
+           do n=0,sp_loc%jcap
+              g=zero
+              g(2*n+1)=one
+              call general_s2g0(grd_sploc,sp_loc,g,f)
+              pn0_npole(n)=f(grd_sploc%nlat,1)
            enddo
-        enddo
-     end if
-  enddo
+   
+           g=zero
+           do n=0,sp_loc%jcap
+              g(2*n+1)=gsave(2*n+1)/pn0_npole(n)
+           enddo
+
+!          obtain spectral_filter
+
+           ii=0
+           do l=0,sp_loc%jcap
+              factor=one
+              if(l >  0) factor=half
+              do n=l,sp_loc%jcap
+                 ii=ii+1
+                 if(sp_loc%factsml(ii)) then
+                    spectral_filter(ig,ii,k)=zero
+                 else
+                    spectral_filter(ig,ii,k)=factor*g(2*n+1)
+                 end if
+                 ii=ii+1
+                 if(l == 0 .or. sp_loc%factsml(ii)) then
+                    spectral_filter(ig,ii,k)=zero
+                 else
+                    spectral_filter(ig,ii,k)=factor*g(2*n+1)
+                 end if
+              enddo
+           enddo
+        end if
+     enddo
   enddo !ig loop
   deallocate(g,gsave,pn0_npole,ksame)
 
@@ -3604,7 +3604,7 @@ subroutine bkerror_a_en(grady)
 
 ! Apply variances, as well as vertical & horizontal parts of background error
   do ii=1,nsubwin
-     if (naensgrp.eq.1) then
+     if (naensgrp==1) then
         call bkgcov_a_en_new_factorization(1,grady%aens(ii,1,1:n_ens))
      else
         allocate(z(naensgrp,nval_lenz_en))
@@ -4285,7 +4285,7 @@ subroutine hybens_localization_setup
       call init_sf_xy(jcap_ens)
    endif
 
-   if(ntotensgrp.gt.1) then
+   if(ntotensgrp>1) then
       call gsi_bundlegetpointer(en_perts(1,1,1),cvars3d,ipc3d,istatus)
       if(istatus/=0) then
          write(6,*) myname_,': cannot find 3d pointers'
@@ -4296,7 +4296,7 @@ subroutine hybens_localization_setup
          write(6,*) myname_,': cannot find 2d pointers'
          call stop2(999)
       endif
-      if(nsclgrp.gt.1) then
+      if(nsclgrp>1) then
          call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
          allocate(values(grd_ens%latlon11*grd_ens%nsig*n_ens))
          do ig=1,nsclgrp-1
@@ -4418,7 +4418,7 @@ subroutine convert_km_to_grid_units(s_ens_h_gu_x,s_ens_h_gu_y,nz)
 !$$$
 
   use kinds, only: r_kind,i_kind
-  use hybrid_ensemble_parameters, only: grd_loc,n_ens,s_ens_hv
+  use hybrid_ensemble_parameters, only: s_ens_hv
   use hybrid_ensemble_parameters, only: region_dx_ens,region_dy_ens
   use hybrid_ensemble_parameters, only: naensloc
   use gsi_io, only: verbose
@@ -5398,6 +5398,7 @@ subroutine setup_ensgrp2aensgrp
 !   machine:  ibm RS/6000 SP
 !
 !$$$ end documentation block
+  use constants, only: zero,one
   use hybrid_ensemble_parameters, only: l_timloc_opt,i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl
   use hybrid_ensemble_parameters, only: ensloccov4tim,ensloccov4var,ensloccov4scl
   use hybrid_ensemble_parameters, only: ntotensgrp,naensgrp,ntlevs_ens,nsclgrp,ngvarloc
@@ -5417,20 +5418,20 @@ subroutine setup_ensgrp2aensgrp
      ntimloc=1
      interval4aens=0
   endif
-  if(naensgrp.ne.ntimloc*ngvarloc*nsclgrp) then
+  if(naensgrp/=ntimloc*ngvarloc*nsclgrp) then
      write(6,*)'setup_ensgrp2aensgrp: wrong naensgrp'
      call stop2(666)
   endif
-  if(ntotensgrp.ne.ngvarloc*nsclgrp) then
+  if(ntotensgrp/=ngvarloc*nsclgrp) then
      write(6,*)'setup_ensgrp2aensgrp: wrong ntotensgrp'
      call stop2(666)
   endif
   ensgrp2aensgrp=-999
   do ibin=1,ntlevs_ens
      do ic=1,nc3d+nc2d
-        if(ngvarloc.gt.1) then
-           if(ic.le.nc3d) ivargrp=idaen3d(ic)
-           if(ic.gt.nc3d) ivargrp=idaen2d(ic-nc3d)
+        if(ngvarloc>1) then
+           if(ic<=nc3d) ivargrp=idaen3d(ic)
+           if(ic> nc3d) ivargrp=idaen2d(ic-nc3d)
         else
            ivargrp=1
         endif
@@ -5441,29 +5442,29 @@ subroutine setup_ensgrp2aensgrp
      enddo
   enddo
 
-  if (i_ensloccov4tim.eq.0) then
-     ensloccov4tim=1.0
-  elseif (i_ensloccov4tim.eq.1)then
-     ensloccov4tim=0.0
-     ensloccov4tim(1)=1.0
+  if (i_ensloccov4tim==0) then
+     ensloccov4tim=one
+  elseif (i_ensloccov4tim==1)then
+     ensloccov4tim=zero
+     ensloccov4tim(1)=one
   else
      write(6,*)'setup_ensgrp2aensgrp: wrong i_ensloccov4tim'
      call stop2(666)
   endif
-  if (i_ensloccov4var.eq.0) then
-     ensloccov4var=1.0
-  elseif (i_ensloccov4var.eq.1)then
-     ensloccov4var=0.0
-     ensloccov4var(1)=1.0
+  if (i_ensloccov4var==0) then
+     ensloccov4var=one
+  elseif (i_ensloccov4var==1)then
+     ensloccov4var=zero
+     ensloccov4var(1)=one
   else
      write(6,*)'setup_ensgrp2aensgrp: wrong i_ensloccov4var'
      call stop2(666)
   endif
-  if (i_ensloccov4scl.eq.0) then
-     ensloccov4scl=1.0
-  elseif (i_ensloccov4scl.eq.1)then
-     ensloccov4scl=0.0
-     ensloccov4scl(1)=1.0
+  if (i_ensloccov4scl==0) then
+     ensloccov4scl=one
+  elseif (i_ensloccov4scl==1)then
+     ensloccov4scl=zero
+     ensloccov4scl(1)=one
   else
      write(6,*)'setup_ensgrp2aensgrp: wrong i_ensloccov4scl'
      call stop2(666)
