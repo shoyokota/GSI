@@ -490,6 +490,7 @@
 !  01-07-2022 Hu        Add fv3_io_layout_y to let fv3lam interface read/write subdomain restart
 !                       files. The fv3_io_layout_y needs to match fv3lam model
 !                       option io_layout(2).
+!  09-15-2022 yokota  - add scale/variable/time-dependent localization
 !
 !EOP
 !-------------------------------------------------------------------------
@@ -1299,9 +1300,19 @@
 !     beta_e0 - default weight given to ensemble background error covariance
 !               (if .not. readin_beta). if beta_e0<0, then it is set to
 !               1.-beta_s0 (this is the default)
-!     s_ens_h             - homogeneous isotropic horizontal ensemble localization scale (km)
-!     s_ens_v             - vertical localization scale (grid units for now)
-!                              s_ens_h, s_ens_v, and beta_s0 are tunable parameters.
+!     s_ens_h - horizontal localization correlation length of Gaussian exp(-0.5*(r/L)**2)
+!               (units of km), default = 2828.0
+!     s_ens_v - vertical localization correlation length of Gaussian exp(-0.5*(r/L)**2)
+!               (grid units if s_ens_v>=0, or units of ln(p) if s_ens_v<0), default = 30.0
+!                  in scale/variable/time-dependent localization (SDL/VDL/TDL),
+!                  localization length for i-th scale, j-th variable, and k-th time is
+!                     s_ens_[hv]( i + nsclgrp*(j-1) + nsclgrp*ngvarloc*(k-1) )
+!                        in SDL(nsclgrp>1),         i = 1(largest scale)  .. nsclgrp(smallest scale)
+!                        in VDL(ngvarloc=2),        j = 1(itracer<=10)    .. 2(itracer>=11)
+!                        in TDL(l_timloc_opt=true), k = 1(first time bin) .. ntlevs_ens(last time bin)
+!                  in SDL, scale separation length for i-th scale is also set here as
+!                     s_ens_[hv]( naensgrp+i ) - naensgrp is the total number of localization lengths for SDL/VDL/TDL
+!                        in applying SDL only horizontally, set s_ens_v(naensgrp+i)=0.0
 !     use_gfs_ens  - controls use of global ensemble: .t. use GFS (default); .f. uses user-defined ens
 !     readin_localization - flag to read (.true.)external localization information file
 !     readin_beta         - flag to read (.true.) the vertically varying beta parameters beta_s and beta_e
@@ -1339,10 +1350,10 @@
 !     ensemble_path - path to ensemble members; default './'
 !     ens_fast_read - read ensemble in parallel; default '.false.'
 !     sst_staticB - use only static background error covariance for SST statistic
-!     nsclgrp - number of scale-dependent localization scales
-!     l_timloc_opt - if true, then turn on temporal localization option
-!     ngvarloc - number of variable-dependent localization scales
-!     naensloc - number of total spatial localization scales (should be >= naensgrp+nsclgrp-1)
+!     nsclgrp - number of scale-dependent localization lengths
+!     l_timloc_opt - if true, then turn on time-dependent localization
+!     ngvarloc - number of variable-dependent localization lengths
+!     naensloc - total number of spatial localization lengths and scale separation lengths (should be naensgrp+nsclgrp-1)
 !     i_ensloccov4tim - flag of cross-temporal localization
 !                         =0: cross-temporal covariance is retained
 !                         =1: cross-temporal covariance is zero

@@ -90,8 +90,19 @@ module hybrid_ensemble_parameters
 !      beta_e0 - default weight given to ensemble background error covariance
 !                (if .not. readin_beta). if beta_e0<0, then it is set to
 !                1.-beta_s0 (this is the default)
-!      s_ens_h:    horizontal localization correlation length (units of km), default = 2828.0
-!      s_ens_v:    vertical localization correlation length (grid units), default = 30.0
+!      s_ens_h: horizontal localization correlation length of Gaussian exp(-0.5*(r/L)**2)
+!               (units of km), default = 2828.0
+!      s_ens_v: vertical localization correlation length of Gaussian exp(-0.5*(r/L)**2)
+!               (grid units if s_ens_v>=0, or units of ln(p) if s_ens_v<0), default = 30.0
+!                  in scale/variable/time-dependent localization (SDL/VDL/TDL),
+!                  localization length for i-th scale, j-th variable, and k-th time is
+!                     s_ens_[hv]( i + nsclgrp*(j-1) + nsclgrp*ngvarloc*(k-1) )
+!                        in SDL(nsclgrp>1),         i = 1(largest scale)  .. nsclgrp(smallest scale)
+!                        in VDL(ngvarloc=2),        j = 1(itracer<=10)    .. 2(itracer>=11)
+!                        in TDL(l_timloc_opt=true), k = 1(first time bin) .. ntlevs_ens(last time bin)
+!                  in SDL, scale separation length for i-th scale is also set here as
+!                     s_ens_[hv]( naensgrp+i ) - naensgrp is the total number of localization lengths for SDL/VDL/TDL
+!                        in applying SDL only horizontally, set s_ens_v(naensgrp+i)=0.0
 !      generate_ens:  if .true., generate ensemble perturbations internally as random samples of background B.
 !                       (used primarily for testing/debugging)
 !                     if .false., read external ensemble perturbations
@@ -118,10 +129,10 @@ module hybrid_ensemble_parameters
 !      ensemble_path: path to ensemble members; default './'
 !      ens_fast_read: read ensemble in parallel; default '.false.'
 !      sst_staticB:   if .true. (default) uses only static part of B error covariance for SST
-!      nsclgrp:         number of scale-dependent localization scales
-!      l_timloc_opt:    if true, then turn on temporal localization option
-!      ngvarloc:        number of variable-dependent localization scales
-!      naensloc:        number of total spatial localization scales (should be >= naensgrp+nsclgrp-1)
+!      nsclgrp:         number of scale-dependent localization lengths
+!      l_timloc_opt:    if true, then turn on time-dependent localization
+!      ngvarloc:        number of variable-dependent localization lengths
+!      naensloc:        total number of spatial localization lengths and scale separation lengths (should be naensgrp+nsclgrp-1)
 !      i_ensloccov4tim: flag of cross-temporal localization
 !                         =0: cross-temporal covariance is retained
 !                         =1: cross-temporal covariance is zero
@@ -164,6 +175,7 @@ module hybrid_ensemble_parameters
 !   2015-01-22  Hu      - add flag i_en_perts_io to control reading ensemble perturbation.
 !   2015-02-11  Hu      - add flag l_ens_in_diff_time to force GSI hybrid use ensembles not available at analysis time
 !   2015-09-18  todling - add sst_staticB to control use of ensemble SST error covariance 
+!   2022-09-15  yokota  - add scale/variable/time-dependent localization
 !
 ! subroutines included:
 
@@ -187,8 +199,10 @@ module hybrid_ensemble_parameters
 !                                   beta_s(:) = beta_s0     , vertically varying weights given to B ; 
 !                                   beta_e(:) = 1 - beta_s0 , vertically varying weights given to A.
 !                            If (readin_beta) then beta_s and beta_e are read from a file and beta_s0 is not used.
-!   def s_ens_h             - homogeneous isotropic horizontal ensemble localization scale (km)
-!   def s_ens_v             - vertical localization scale (grid units for now)
+!   def s_ens_h             - horizontal localization correlation length of Gaussian exp(-0.5*(r/L)**2)
+!                             (units of km), default = 2828.0
+!   def s_ens_v             - vertical localization correlation length of Gaussian exp(-0.5*(r/L)**2)
+!                             (grid units if s_ens_v>=0, or units of ln(p) if s_ens_v<0), default = 30.0
 !   def readin_localization - flag to read (.true.)external localization information file
 !   def eqspace_ensgrid     - if .true., then ensemble grid is equal spaced, staggered 1/2 grid unit off
 !                               poles.  if .false., then Gaussian grid assumed for ensemble (global only)

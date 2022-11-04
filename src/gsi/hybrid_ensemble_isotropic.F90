@@ -48,6 +48,7 @@ module hybrid_ensemble_isotropic
 !   2015-04-07  carley  - bug fix to allow grd_loc%nlat=grd_loc%nlon
 !   2016-05-13  parrish - remove beta12mult
 !   2018-02-15  wu      - add code for fv3_regional option
+!   2022-09-15  yokota  - add scale/variable/time-dependent localization
 !
 ! subroutines included:
 !   sub init_rf_z                         - initialize localization recursive filter (z direction)
@@ -2977,7 +2978,7 @@ subroutine init_sf_xy(jcap_in)
   use kinds, only: r_kind,i_kind,r_single
   use hybrid_ensemble_parameters,only: s_ens_hv,sp_loc,grd_ens,grd_loc,sp_ens,n_ens,p_sploc2ens,grd_sploc
   use hybrid_ensemble_parameters,only: use_localization_grid
-  use hybrid_ensemble_parameters,only: naensloc
+  use hybrid_ensemble_parameters,only: naensgrp,naensloc
   use gridmod,only: use_sp_eqspace
   use general_specmod, only: general_init_spec_vars
   use constants, only: zero,half,one,two,three,rearth,pi
@@ -3164,7 +3165,7 @@ subroutine init_sf_xy(jcap_in)
      do k=2,grd_sploc%nsig
         if(s_ens_hv(k,ig) == s_ens_hv(k-1,ig))ksame(k)=.true.
      enddo
-     spectral_filter=zero
+     spectral_filter(ig,:,:)=zero
      do k=1,grd_sploc%nsig
         if(ksame(k))then
            spectral_filter(ig,:,k)=spectral_filter(ig,:,k-1)
@@ -3219,8 +3220,12 @@ subroutine init_sf_xy(jcap_in)
 
            ii=0
            do l=0,sp_loc%jcap
-              factor=one
-              if(l >  0) factor=half
+              if(ig>naensgrp) then
+                 factor=one/g(1)
+              else
+                 factor=one
+                 if(l>0) factor=half
+              end if
               do n=l,sp_loc%jcap
                  ii=ii+1
                  if(sp_loc%factsml(ii)) then
@@ -3316,33 +3321,53 @@ subroutine sf_xy(ig,f,k_start,k_end)
   use kinds, only: r_kind,i_kind
   use hybrid_ensemble_parameters, only: grd_ens,sp_loc,p_sploc2ens,grd_sploc
   use hybrid_ensemble_parameters,only: use_localization_grid
-  use egrid2agrid_mod,only: g_egrid2agrid,g_egrid2agrid_ad  
+  use hybrid_ensemble_parameters,only: naensgrp
+  use egrid2agrid_mod,only: g_egrid2agrid,g_egrid2agrid_ad,g_agrid2egrid
   implicit none
 
   integer(i_kind),intent(in   ) :: ig
   integer(i_kind),intent(in   ) :: k_start,k_end
   real(r_kind)   ,intent(inout) :: f(grd_ens%nlat,grd_ens%nlon,k_start:max(k_start,k_end))
 
+  real(r_kind) g(sp_loc%nc)
   real(r_kind) work(grd_sploc%nlat,grd_sploc%nlon,1)
   integer(i_kind) k
   logical vector(k_start:max(k_start,k_end))
 
   if(.not.use_localization_grid) then
 
+    if(ig>naensgrp) then
+       do k=k_start,k_end
+          call general_g2s0(grd_ens,sp_loc,g,f(:,:,k))
+          g(:)=g(:)*spectral_filter(ig,:,k_index(k))
+          call general_s2g0(grd_ens,sp_loc,g,f(:,:,k))
+       enddo
+    else
 !$omp parallel do schedule(dynamic,1) private(k)
-    do k=k_start,k_end
-       call sfilter(grd_ens,sp_loc,spectral_filter(ig,:,k_index(k)),f(1,1,k))
-    enddo
+       do k=k_start,k_end
+          call sfilter(grd_ens,sp_loc,spectral_filter(ig,:,k_index(k)),f(1,1,k))
+       enddo
+    endif
 
   else
 
     vector=.false.
+    if(ig>naensgrp) then
+       do k=k_start,k_end
+          call g_agrid2egrid(p_sploc2ens,work,f(:,:,k:k),k,k,vector(k:k))
+          call general_g2s0(grd_ens,sp_loc,g,f(:,:,k))
+          g(:)=g(:)*spectral_filter(ig,:,k_index(k))
+          call general_s2g0(grd_ens,sp_loc,g,f(:,:,k))
+          call g_egrid2agrid(p_sploc2ens,work,f(:,:,k:k),k,k,vector(k:k))
+       enddo
+    else
 !$omp parallel do schedule(dynamic,1) private(k,work)
-    do k=k_start,k_end
-       call g_egrid2agrid_ad(p_sploc2ens,work,f(:,:,k:k),k,k,vector(k:k))
-       call sfilter(grd_ens,sp_loc,spectral_filter(ig,:,k_index(k)),f(1,1,k))
-       call g_egrid2agrid(p_sploc2ens,work,f(:,:,k:k),k,k,vector(k:k))
-    enddo
+       do k=k_start,k_end
+          call g_egrid2agrid_ad(p_sploc2ens,work,f(:,:,k:k),k,k,vector(k:k))
+          call sfilter(grd_ens,sp_loc,spectral_filter(ig,:,k_index(k)),f(1,1,k))
+          call g_egrid2agrid(p_sploc2ens,work,f(:,:,k:k),k,k,vector(k:k))
+       enddo
+    end if
 
   endif
   return
@@ -3552,6 +3577,7 @@ subroutine bkerror_a_en(grady)
 ! program history log:
 !   2009-09-17  parrish  initial creation of code from a copy of bkerror
 !   2010-05-20  todling  update to use bundle
+!   2022-09-15  yokota   add scale/variable/time-dependent localization
 !
 !   input argument list:
 !     grady    - input field  
@@ -4121,6 +4147,7 @@ subroutine hybens_localization_setup
 !   12-05-2012  el akkraoui  hybrid beta parameters now vertically varying
 !   2012-10-16  wu - only call setup_ens_wgt if necessary
 !   2014-05-22  wu  modification to allow vertically varying localization scales in regional
+!   2022-09-15  yokota - add scale/variable/time-dependent localization
 !
 !   input argument list:
 !
@@ -5386,6 +5413,8 @@ subroutine setup_ensgrp2aensgrp
 ! subprogram:    set a matrix of (naensgrp,naensgrp)
 !
 ! program history log:
+!   2022-09-15  yokota  - add scale/variable/time-dependent localization
+!
 !   input argument list:
 !
 !   output argument list:
