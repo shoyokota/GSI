@@ -151,7 +151,7 @@
                          readin_beta,use_localization_grid,use_gfs_ens,q_hyb_ens,i_en_perts_io, &
                          l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB, &
                          ntotensgrp,nsclgrp,naensgrp,ngvarloc,ntlevs_ens,naensloc, &
-                         i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl,l_timloc_opt
+                         r_ensloccov4tim,r_ensloccov4var,r_ensloccov4scl,l_timloc_opt
   use hybrid_ensemble_parameters,only : l_both_fv3sar_gfs_ens,n_ens_gfs,n_ens_fv3sar
   use rapidrefresh_cldsurf_mod, only: init_rapidrefresh_cldsurf, &
                             dfi_radar_latent_heat_time_period,metar_impact_radius,&
@@ -1354,15 +1354,9 @@
 !     l_timloc_opt - if true, then turn on time-dependent localization
 !     ngvarloc - number of variable-dependent localization lengths
 !     naensloc - total number of spatial localization lengths and scale separation lengths (should be naensgrp+nsclgrp-1)
-!     i_ensloccov4tim - flag of cross-temporal localization
-!                         =0: cross-temporal covariance is retained
-!                         =1: cross-temporal covariance is zero
-!     i_ensloccov4var - flag of cross-variable localization
-!                         =0: cross-variable covariance is retained
-!                         =1: cross-variable covariance is zero
-!     i_ensloccov4scl - flag of cross-scale localization
-!                         =0: cross-scale covariance is retained
-!                         =1: cross-scale covariance is zero
+!     r_ensloccov4tim - factor multiplying to cross-temporal localization
+!     r_ensloccov4var - factor multiplying to cross-variable localization
+!     r_ensloccov4scl - factor multiplying to cross-scale localization
 !
   namelist/hybrid_ensemble/l_hyb_ens,uv_hyb_ens,q_hyb_ens,aniso_a_en,generate_ens,n_ens,l_both_fv3sar_gfs_ens,n_ens_gfs,n_ens_fv3sar,nlon_ens,nlat_ens,jcap_ens,&
                 pseudo_hybens,merge_two_grid_ensperts,regional_ensemble_option,fv3sar_bg_opt,fv3sar_ensemble_opt,full_ensemble,pwgtflg,&
@@ -1370,7 +1364,7 @@
                 grid_ratio_ens, &
                 oz_univ_static,write_ens_sprd,use_localization_grid,use_gfs_ens, &
                 i_en_perts_io,l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB, &
-                nsclgrp,l_timloc_opt,ngvarloc,naensloc,i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl
+                nsclgrp,l_timloc_opt,ngvarloc,naensloc,r_ensloccov4tim,r_ensloccov4var,r_ensloccov4scl
 
 ! rapidrefresh_cldsurf (options for cloud analysis and surface 
 !                             enhancement for RR appilcation  ):

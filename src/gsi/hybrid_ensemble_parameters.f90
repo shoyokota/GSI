@@ -133,15 +133,9 @@ module hybrid_ensemble_parameters
 !      l_timloc_opt:    if true, then turn on time-dependent localization
 !      ngvarloc:        number of variable-dependent localization lengths
 !      naensloc:        total number of spatial localization lengths and scale separation lengths (should be naensgrp+nsclgrp-1)
-!      i_ensloccov4tim: flag of cross-temporal localization
-!                         =0: cross-temporal covariance is retained
-!                         =1: cross-temporal covariance is zero
-!      i_ensloccov4var: flag of cross-variable localization
-!                         =0: cross-variable covariance is retained
-!                         =1: cross-variable covariance is zero
-!      i_ensloccov4scl: flag of cross-scale localization
-!                         =0: cross-scale covariance is retained
-!                         =1: cross-scale covariance is zero
+!      r_ensloccov4tim: factor multiplying to cross-temporal covariance
+!      r_ensloccov4var: factor multiplying to cross-variable covariance
+!      r_ensloccov4scl: factor multiplying to cross-scale covariance
 !=====================================================================================================
 !
 !
@@ -324,7 +318,7 @@ module hybrid_ensemble_parameters
   public :: ensloccov4tim,ensloccov4var,ensloccov4scl
   public :: alphacvarsclgrpmat
   public :: l_timloc_opt
-  public :: i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl
+  public :: r_ensloccov4tim,r_ensloccov4var,r_ensloccov4scl
   public :: idaen3d,idaen2d
   public :: ens_fast_read
   public :: l_both_fv3sar_gfs_ens 
@@ -383,9 +377,9 @@ module hybrid_ensemble_parameters
   integer(i_kind) :: ntotensgrp=1
   integer(i_kind) :: naensloc=1
   integer(i_kind) :: ngvarloc=1
-  integer(i_kind) :: i_ensloccov4tim=0
-  integer(i_kind) :: i_ensloccov4var=0
-  integer(i_kind) :: i_ensloccov4scl=0
+  real(r_kind) :: r_ensloccov4tim
+  real(r_kind) :: r_ensloccov4var
+  real(r_kind) :: r_ensloccov4scl
   integer(i_kind),allocatable,dimension(:) :: idaen3d,idaen2d
 
 ! following is for storage of ensemble perturbations:
@@ -477,6 +471,9 @@ subroutine init_hybrid_ensemble_parameters
   l_both_fv3sar_gfs_ens=.false.
   n_ens_gfs=0 
   n_ens_fv3sar=0
+  r_ensloccov4tim=one
+  r_ensloccov4var=one
+  r_ensloccov4scl=one
 
 end subroutine init_hybrid_ensemble_parameters
 

@@ -5428,7 +5428,7 @@ subroutine setup_ensgrp2aensgrp
 !
 !$$$ end documentation block
   use constants, only: zero,one
-  use hybrid_ensemble_parameters, only: l_timloc_opt,i_ensloccov4tim,i_ensloccov4var,i_ensloccov4scl
+  use hybrid_ensemble_parameters, only: l_timloc_opt,r_ensloccov4tim,r_ensloccov4var,r_ensloccov4scl
   use hybrid_ensemble_parameters, only: ensloccov4tim,ensloccov4var,ensloccov4scl
   use hybrid_ensemble_parameters, only: ntotensgrp,naensgrp,ntlevs_ens,nsclgrp,ngvarloc
   use hybrid_ensemble_parameters, only: ensgrp2aensgrp
@@ -5471,31 +5471,25 @@ subroutine setup_ensgrp2aensgrp
      enddo
   enddo
 
-  if (i_ensloccov4tim==0) then
-     ensloccov4tim=one
-  elseif (i_ensloccov4tim==1)then
-     ensloccov4tim=zero
+  if (r_ensloccov4tim>=zero.and.r_ensloccov4tim<=one) then
+     ensloccov4tim=r_ensloccov4tim
      ensloccov4tim(1)=one
   else
-     write(6,*)'setup_ensgrp2aensgrp: wrong i_ensloccov4tim'
+     write(6,*)'setup_ensgrp2aensgrp: wrong r_ensloccov4tim'
      call stop2(666)
   endif
-  if (i_ensloccov4var==0) then
-     ensloccov4var=one
-  elseif (i_ensloccov4var==1)then
-     ensloccov4var=zero
+  if (r_ensloccov4var>=zero.and.r_ensloccov4var<=one) then
+     ensloccov4var=r_ensloccov4var
      ensloccov4var(1)=one
   else
-     write(6,*)'setup_ensgrp2aensgrp: wrong i_ensloccov4var'
+     write(6,*)'setup_ensgrp2aensgrp: wrong r_ensloccov4var'
      call stop2(666)
   endif
-  if (i_ensloccov4scl==0) then
-     ensloccov4scl=one
-  elseif (i_ensloccov4scl==1)then
-     ensloccov4scl=zero
+  if (r_ensloccov4scl>=zero.and.r_ensloccov4scl<=one) then
+     ensloccov4scl=r_ensloccov4scl
      ensloccov4scl(1)=one
   else
-     write(6,*)'setup_ensgrp2aensgrp: wrong i_ensloccov4scl'
+     write(6,*)'setup_ensgrp2aensgrp: wrong r_ensloccov4scl'
      call stop2(666)
   endif
 
