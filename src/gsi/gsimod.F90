@@ -1982,20 +1982,6 @@
      baldiag_inc =.false.
   end if
 
-! If reflectivity is intended to be assimilated, beta_s0 should be zero.
-  if ( beta_s0 > 0.0_r_kind )then
-    ! skipped in case of direct reflectivity DA because it works in Envar and hybrid
-    if ( .not.l_use_rw_columntilt .or. .not.l_use_dbz_directDA) then
-       do i=1,ndat
-          if ( if_model_dbz .and. ( index(dtype(i), 'dbz') /= 0 ) ) then
-             write(6,*)'beta_s0 needs to be set to zero in this GSI version, when reflectivity is directly assimilated. &
-                        Static B extended for radar reflectivity assimilation will be included in future version.'
-             call stop2(8888)
-          end if
-       end do
-    end if
-  end if
-
 ! Turn off uv option if hybrid/ensemble options is false for purposes 
 ! of TLNMC 
   if (.not.l_hyb_ens) uv_hyb_ens=.false.
