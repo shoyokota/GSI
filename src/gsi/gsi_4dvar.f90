@@ -259,6 +259,7 @@ subroutine setup_4dvar(mype)
 !$$$ end documentation block
 
 use hybrid_ensemble_parameters, only: ntlevs_ens
+use hybrid_ensemble_parameters, only: l_etlm,ntlevs_etlm
 use jcmod, only: ljc4tlevs
 implicit none
 integer(i_kind),intent(in   ) :: mype
@@ -340,6 +341,11 @@ if ( l4densvar ) then
 
    ntlevs_ens = nobs_bins
    ens_nhr    = nhr_obsbin
+   if ( l_etlm ) then
+      ntlevs_etlm = nobs_bins
+   else
+      ntlevs_etlm = 1
+   end if
 
    if ( mype == 0 ) &
       write(6,'(A)')' SETUP_4DVAR: 4densvar mode, resetting nsubwin to 1'
@@ -352,6 +358,8 @@ if ( l4densvar ) then
 else
 
    ntlevs_ens = 1
+   l_etlm = .false.
+   ntlevs_etlm = 1
 
    if ( l4dvar .and. mype == 0 ) &
       write(6,'(2(A,I4))')' SETUP_4DVAR: option to run hybrid 4dvar chosen.'
@@ -385,6 +393,8 @@ if (mype==0) then
    write(6,*)'SETUP_4DVAR: hr_obsbin=',hr_obsbin
    write(6,*)'SETUP_4DVAR: nobs_bins=',nobs_bins
    write(6,*)'SETUP_4DVAR: ntlevs_ens=',ntlevs_ens
+   write(6,*)'SETUP_4DVAR: l_etlm=',l_etlm
+   write(6,*)'SETUP_4DVAR: ntlevs_etlm=',ntlevs_etlm
    write(6,*)'SETUP_4DVAR: nsubwin,nhr_subwin=',nsubwin,nhr_subwin
    write(6,*)'SETUP_4DVAR: lsqrtb=',lsqrtb
    write(6,*)'SETUP_4DVAR: lbicg=',lbicg

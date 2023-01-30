@@ -30,6 +30,7 @@ use kinds, only: r_kind,i_kind
 use control_vectors, only: control_vector,cvars3d
 use gsi_4dvar, only: ibin_anl
 use hybrid_ensemble_parameters, only: uv_hyb_ens,dual_res,ntlevs_ens,q_hyb_ens
+use hybrid_ensemble_parameters, only: l_etlm,ntlevs_etlm
 use hybrid_ensemble_isotropic, only: ensemble_forward_model,ensemble_forward_model_dual_res
 use balmod, only: strong_bk
 use gsi_bundlemod, only: gsi_bundlecreate
@@ -51,7 +52,7 @@ implicit none
 
 ! Declare passed variables
 type(control_vector), intent(in   ) :: xhat
-type(gsi_bundle)    , intent(in   ) :: mval
+type(gsi_bundle)    , intent(in   ) :: mval(ntlevs_etlm)
 type(gsi_bundle)    , intent(inout) :: eval(ntlevs_ens)
 
 ! Declare local variables
@@ -261,7 +262,11 @@ do jj=1,ntlevs_ens
 !$omp end parallel sections
 
 ! Add contribution from static B, if necessary
-   call self_add(eval(jj),mval)
+   if(l_etlm) then
+      call self_add(eval(jj),mval(jj))
+   else
+      call self_add(eval(jj),mval(1))
+   end if
 
 ! Call strong constraint if necessary
    if(do_tlnmc) then

@@ -322,22 +322,22 @@ contains
 
 
              if( mype==iope) then
-               allocate(gg_u(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
-               allocate(gg_v(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
-               allocate(gg_tv(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
-               allocate(gg_rh(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
-               allocate(gg_oz(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
-               allocate(gg_ps(grd_ens%nlat,grd_ens%nlon))
+               if(.not.allocated(gg_u))  allocate(gg_u(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+               if(.not.allocated(gg_v))  allocate(gg_v(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+               if(.not.allocated(gg_tv)) allocate(gg_tv(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+               if(.not.allocated(gg_rh)) allocate(gg_rh(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+               if(.not.allocated(gg_oz)) allocate(gg_oz(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+               if(.not.allocated(gg_ps)) allocate(gg_ps(grd_ens%nlat,grd_ens%nlon))
                if (.not. if_model_dbz ) then
                   call this%general_read_fv3_regional_parallelIO(iope,fv3_filename,gg_ps,gg_u,gg_v,gg_tv,gg_rh,gg_oz)
                else
-                  allocate(gg_w(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
-                  allocate(gg_dbz(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
-                  allocate(gg_qr(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
-                  allocate(gg_qs(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
-                  allocate(gg_qi(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
-                  allocate(gg_qg(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
-                  allocate(gg_cwmr(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+                  if(.not.allocated(gg_w))    allocate(gg_w(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+                  if(.not.allocated(gg_dbz))  allocate(gg_dbz(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+                  if(.not.allocated(gg_qr))   allocate(gg_qr(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+                  if(.not.allocated(gg_qs))   allocate(gg_qs(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+                  if(.not.allocated(gg_qi))   allocate(gg_qi(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+                  if(.not.allocated(gg_qg))   allocate(gg_qg(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
+                  if(.not.allocated(gg_cwmr)) allocate(gg_cwmr(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig))
                   call this%general_read_fv3_regional_parallelIO(iope,fv3_filename,gg_ps,gg_u,gg_v,gg_tv,gg_rh,gg_oz, &
                                                       g_ql=gg_cwmr,g_qi=gg_qi,g_qr=gg_qr,g_qs=gg_qs,g_qg=gg_qg,g_w=gg_w,g_dbz=gg_dbz)
                   write(6,*)'Check-dBZ',maxval(gg_dbz),minval(gg_dbz)

@@ -27,6 +27,7 @@ use kinds, only: r_kind,i_kind
 use control_vectors, only: control_vector,cvars3d
 use gsi_4dvar, only: ibin_anl
 use hybrid_ensemble_parameters, only: uv_hyb_ens,dual_res,ntlevs_ens,q_hyb_ens
+use hybrid_ensemble_parameters, only: l_etlm,ntlevs_etlm
 use hybrid_ensemble_isotropic, only: ensemble_forward_model_ad
 use hybrid_ensemble_isotropic, only: ensemble_forward_model_ad_dual_res
 use balmod, only: strong_bk_ad
@@ -50,7 +51,7 @@ implicit none
 
 ! Declare passed variables
 type(control_vector), intent(inout) :: grad
-type(gsi_bundle)    , intent(inout) :: mval
+type(gsi_bundle)    , intent(inout) :: mval(ntlevs_etlm)
 type(gsi_bundle)    , intent(in   ) :: eval(ntlevs_ens)
 
 ! Declare local variables
@@ -145,7 +146,9 @@ do_cw_to_hydro_ad_hwrf=lc_cw.and.ls_ql.and.ls_qi.and.ls_qr.and.ls_qs.and.ls_qg.a
 wdw_exist = lc_w.and.lc_dw.and.ls_w.and.ls_dw
 
 ! Initialize
-mval%values=zero
+do jj=1,ntlevs_etlm
+   mval(jj)%values=zero
+end do
 !  Create a temporary bundle similar to grad, and copy contents of grad into it
 call gsi_bundlecreate ( wbundle_c, grad%step(1), 'ensctl2state_ad work', istatus )
 if(istatus/=0) then
@@ -186,7 +189,11 @@ do jj=1,ntlevs_ens
 
    end if
 
-   call self_add(mval,eval(jj))
+   if(l_etlm) then
+      call self_add(mval(jj),eval(jj))
+   else
+      call self_add(mval(1),eval(jj))
+   end if
 
 !$omp parallel sections private(ic,id,istatus)
 

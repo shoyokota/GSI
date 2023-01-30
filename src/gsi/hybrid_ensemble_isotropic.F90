@@ -67,6 +67,7 @@ module hybrid_ensemble_isotropic
 !   sub ensemble_forward_model_ad         - adjoint of ensemble_forward_model
 !   sub ensemble_forward_model_dual_res   - dual resolution version of ensemble_forward_model
 !   sub ensemble_forward_model_ad_dual_res- adjoint of ensemble_forward_model_dual_res
+!   etlm -
 !   get_new_alpha_beta - 
 !   bkerror_a_en - 
 !   ckgcov_a_en_new_factorization - 
@@ -124,6 +125,7 @@ module hybrid_ensemble_isotropic
   public :: ensemble_forward_model_dual_res
   public :: ensemble_forward_model_ad
   public :: ensemble_forward_model_ad_dual_res
+  public :: etlm
   public :: sqrt_beta_s_mult
   public :: sqrt_beta_e_mult
   public :: init_sf_xy
@@ -1118,6 +1120,7 @@ end subroutine normal_new_factorization_rf_y
 !   machine:  ibm RS/6000 SP
 !
 !$$$
+    use constants, only: zero
     use hybrid_ensemble_parameters, only: n_ens,grd_ens,ntlevs_ens
     use hybrid_ensemble_parameters, only: nelen,en_perts,ps_bar
     use hybrid_ensemble_parameters, only: ntotensgrp
@@ -2416,6 +2419,305 @@ end subroutine normal_new_factorization_rf_y
     return
 
   end subroutine ensemble_forward_model_ad_dual_res
+
+  subroutine etlm(val,eval,iflg)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    etlm  ensemble tangent linear model
+!
+! program history log:
+!   2022-12-28  yokota   add ensemble tangent linear model
+!
+!   input argument list:
+!     val       - state vector before applying ETLM
+!     eval      - state vector after applying ETLM
+!     iflg      - 0: tangent linear (val -> eval)
+!                 1: adjoint (eval -> val)
+!
+!   output
+!     val       - state vector before applying ETLM
+!     eval      - state vector after applying ETLM
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+    use kinds, only: r_kind,i_kind
+    use constants, only: zero
+    use gsi_4dvar, only: nsubwin, lsqrtb
+    use control_vectors, only: control_vector
+    use control_vectors, only: allocate_cv,deallocate_cv,assignment(=)
+    use hybrid_ensemble_parameters, only: n_ens
+    use hybrid_ensemble_parameters, only: naensgrp,ntotensgrp
+    use hybrid_ensemble_parameters, only: alphacvarsclgrpmat
+    use hybrid_ensemble_parameters, only: nval_lenz_en
+    use hybrid_ensemble_parameters, only: uv_hyb_ens,dual_res,nelen
+    use hybrid_ensemble_parameters, only: en_perts,en_etlm,ig_etlm,ntlevs_etlm
+    use gsi_bundlemod, only: gsi_bundlegetvar
+    use gsi_bundlemod, only: gsi_bundleputvar
+    implicit none
+
+    type(gsi_bundle),intent(inout) :: val
+    type(gsi_bundle),intent(inout) :: eval(ntlevs_etlm)
+    integer(i_kind),intent(in) :: iflg
+
+    integer(i_kind) ii,n,istatus,k,ig,ig2,ig0
+    integer(i_kind) ipnts(4),is_u,is_v,is_tv,is_ps,ic_sf,ic_vp,ic_t,ic_ps
+    real(r_kind),pointer,dimension(:,:,:) :: sv_u=>NULL()
+    real(r_kind),pointer,dimension(:,:,:) :: sv_v=>NULL()
+    real(r_kind),pointer,dimension(:,:,:) :: sv_tv=>NULL()
+    real(r_kind),pointer,dimension(:,:)   :: sv_ps=>NULL()
+    real(r_kind),pointer,dimension(:,:,:) :: cv_sf=>NULL()
+    real(r_kind),pointer,dimension(:,:,:) :: cv_vp=>NULL()
+    real(r_kind),pointer,dimension(:,:,:) :: se_u=>NULL()
+    real(r_kind),pointer,dimension(:,:,:) :: se_v=>NULL()
+    real(r_kind),pointer,dimension(:,:,:) :: se_tv=>NULL()
+    real(r_kind),pointer,dimension(:,:)   :: se_ps=>NULL()
+    real(r_kind),pointer,dimension(:,:,:) :: ce_sf=>NULL()
+    real(r_kind),pointer,dimension(:,:,:) :: ce_vp=>NULL()
+    real(r_kind),allocatable,dimension(:,:) :: z
+    real(r_kind),allocatable,dimension(:) :: ztmp
+    real(r_kind),allocatable,dimension(:,:,:) :: values
+    logical dobal
+    type(control_vector) :: grade
+
+    if (lsqrtb) then
+       write(6,*)'etlm: not for use with lsqrtb'
+       call stop2(999)
+    end if
+
+    call gsi_bundlegetpointer ( val, (/'u','v','tv','ps'/), ipnts, istatus )
+    is_u  = ipnts(1)
+    is_v  = ipnts(2)
+    is_tv = ipnts(3)
+    is_ps = ipnts(4)
+    dobal = is_u>0.and.is_v>0.and.is_tv>0.and.is_ps>0
+    if (.not.dobal) then
+       write(6,*)'etlm: cannot find pointers for state vector'
+       call stop2(999)
+    end if
+
+    do ii=1,ntlevs_etlm
+       call gsi_bundlegetpointer ( eval(ii), (/'u','v','tv','ps'/), ipnts, istatus )
+       is_u  = ipnts(1)
+       is_v  = ipnts(2)
+       is_tv = ipnts(3)
+       is_ps = ipnts(4)
+       dobal = is_u>0.and.is_v>0.and.is_tv>0.and.is_ps>0
+       if (.not.dobal) then
+          write(6,*)'etlm: cannot find pointers for state vector at t= ',ii
+          call stop2(999)
+       end if
+    end do
+
+    call allocate_cv(grade)
+    grade=zero
+    call gsi_bundlegetpointer ( grade%step(1), (/'sf','vp','t','ps'/), ipnts, istatus )
+    ic_sf  = ipnts(1)
+    ic_vp  = ipnts(2)
+    ic_t   = ipnts(3)
+    ic_ps  = ipnts(4)
+    dobal = ic_sf>0.and.ic_vp>0.and.ic_t>0.and.ic_ps>0
+    if (.not.dobal) then
+       write(6,*)'etlm: cannot find pointers for control vector'
+       call stop2(999)
+    end if
+
+    call gsi_bundlegetpointer ( val, 'u', sv_u, istatus )
+    call gsi_bundlegetpointer ( val, 'v', sv_v, istatus )
+    call gsi_bundlegetpointer ( val, 'tv', sv_tv, istatus )
+    call gsi_bundlegetpointer ( val, 'ps', sv_ps, istatus )
+
+    ig0=ig_etlm
+    if(iflg==0) then
+       grade%step(1)%values=zero
+       if(uv_hyb_ens) then
+          call gsi_bundleputvar ( grade%step(1), 'sf', sv_u, istatus )
+          call gsi_bundleputvar ( grade%step(1), 'vp', sv_v, istatus )
+       else
+          call gsi_bundlegetpointer ( grade%step(1), 'sf', cv_sf, istatus )
+          call gsi_bundlegetpointer ( grade%step(1), 'vp', cv_vp, istatus )
+          call getuv(sv_u,sv_v,cv_sf,cv_vp,1)
+       end if
+       call gsi_bundleputvar ( grade%step(1), 't' , sv_tv, istatus )
+       call gsi_bundleputvar ( grade%step(1), 'ps', sv_ps, istatus )
+       call gsi_bundleputvar ( val, 'u', zero, istatus )
+       call gsi_bundleputvar ( val, 'v', zero, istatus )
+       call gsi_bundleputvar ( val, 'tv', zero, istatus )
+       call gsi_bundleputvar ( val, 'ps', zero, istatus )
+       allocate(values(n_ens,ntotensgrp,nelen))
+       do ig=1,ntotensgrp
+          do n=1,n_ens
+             values(n,ig,:)=en_perts(n,ig,1)%valuesr4(:)
+             en_perts(n,ig,1)%valuesr4=en_perts(n,ig,1)%valuesr4*en_etlm(ig)%valuesr4
+          end do
+       end do
+       do ig=1,naensgrp
+          do n=1,n_ens
+             grade%aens(1,ig,n)%values=zero
+          end do
+       end do
+       if(dual_res) then
+          call ensemble_forward_model_ad_dual_res(grade%step(1),grade%aens(1,:,:),1)
+       else
+          call ensemble_forward_model_ad(grade%step(1),grade%aens(1,:,:),1)
+       end if
+       grade%step(1)%values=zero
+       do ig=1,ntotensgrp
+          do n=1,n_ens
+             en_perts(n,ig,1)%valuesr4(:)=values(n,ig,:)
+          end do
+       end do
+       deallocate(values)
+    elseif(iflg==1) then
+       do ig=1,naensgrp
+          do n=1,n_ens
+             grade%aens(1,ig,n)%values=zero
+          end do
+       end do
+       val%values=zero
+       do ii=1,ntlevs_etlm
+          call gsi_bundlegetpointer ( eval(ii), 'u', se_u, istatus )
+          call gsi_bundlegetpointer ( eval(ii), 'v', se_v, istatus )
+          call gsi_bundlegetpointer ( eval(ii), 'tv', se_tv, istatus )
+          call gsi_bundlegetpointer ( eval(ii), 'ps', se_ps, istatus )
+          grade%step(1)%values=zero
+          if(uv_hyb_ens) then
+             call gsi_bundleputvar ( grade%step(1), 'sf', se_u, istatus )
+             call gsi_bundleputvar ( grade%step(1), 'vp', se_v, istatus )
+          else
+             call gsi_bundlegetpointer ( grade%step(1), 'sf', ce_sf, istatus )
+             call gsi_bundlegetpointer ( grade%step(1), 'vp', ce_vp, istatus )
+             call getuv(se_u,se_v,ce_sf,ce_vp,1)
+          end if
+          call gsi_bundleputvar ( grade%step(1), 't' , se_tv, istatus )
+          call gsi_bundleputvar ( grade%step(1), 'ps', se_ps, istatus )
+          call gsi_bundleputvar ( eval(ii), 'u', zero, istatus )
+          call gsi_bundleputvar ( eval(ii), 'v', zero, istatus )
+          call gsi_bundleputvar ( eval(ii), 'tv', zero, istatus )
+          call gsi_bundleputvar ( eval(ii), 'ps', zero, istatus )
+          if(dual_res) then
+             call ensemble_forward_model_ad_dual_res(grade%step(1),grade%aens(1,:,:),ii)
+          else
+             call ensemble_forward_model_ad(grade%step(1),grade%aens(1,:,:),ii)
+          end if
+          grade%step(1)%values=zero
+          val%values=val%values+eval(ii)%values
+          eval(ii)%values=zero
+       end do
+    end if
+
+    if (naensgrp==1) then
+       if(ig_etlm<=0) ig0=1
+       call bkgcov_a_en_new_factorization(ig0,grade%aens(1,1,1:n_ens))
+    else
+       allocate(z(naensgrp,nval_lenz_en))
+       do ig=1,naensgrp
+          if(ig_etlm<=0) ig0=ig
+          call ckgcov_a_en_new_factorization_ad(ig0,z(ig,:),grade%aens(1,ig,1:n_ens))
+       enddo
+       allocate(ztmp(naensgrp))
+       do k=1,nval_lenz_en
+          ztmp=zero
+          do ig=1,naensgrp
+             do ig2=1,naensgrp
+                ztmp(ig) = ztmp(ig) + z(ig2,k) * alphacvarsclgrpmat(ig,ig2)
+             enddo
+          enddo
+          do ig=1,naensgrp
+             z(ig,k) = ztmp(ig)
+          enddo
+       enddo
+       deallocate(ztmp)
+       do ig=1,naensgrp
+          if(ig_etlm<=0) ig0=ig
+          call ckgcov_a_en_new_factorization(ig0,z(ig,:),grade%aens(1,ig,1:n_ens))
+       enddo
+       deallocate(z)
+    endif
+
+    if(iflg==0) then
+       do ii=1,ntlevs_etlm
+          eval(ii)%values=zero
+          eval(ii)%values=val%values
+          grade%step(1)%values=zero
+          call gsi_bundlegetpointer ( eval(ii), 'u', se_u, istatus )
+          call gsi_bundlegetpointer ( eval(ii), 'v', se_v, istatus )
+          call gsi_bundlegetpointer ( eval(ii), 'tv', se_tv, istatus )
+          call gsi_bundlegetpointer ( eval(ii), 'ps', se_ps, istatus )
+          if(dual_res) then
+             call ensemble_forward_model_dual_res(grade%step(1),grade%aens(1,:,:),ii)
+          else
+             call ensemble_forward_model(grade%step(1),grade%aens(1,:,:),ii)
+          end if
+          call gsi_bundleputvar ( eval(ii), 'u', zero, istatus )
+          call gsi_bundleputvar ( eval(ii), 'v', zero, istatus )
+          call gsi_bundleputvar ( eval(ii), 'tv', zero, istatus )
+          call gsi_bundleputvar ( eval(ii), 'ps', zero, istatus )
+          if(uv_hyb_ens) then
+             call gsi_bundlegetvar ( grade%step(1), 'sf', se_u, istatus )
+             call gsi_bundlegetvar ( grade%step(1), 'vp', se_v, istatus )
+          else
+             call gsi_bundlegetpointer ( grade%step(1), 'sf', ce_sf, istatus )
+             call gsi_bundlegetpointer ( grade%step(1), 'vp', ce_vp, istatus )
+             call getuv(se_u,se_v,ce_sf,ce_vp,0)
+          end if
+          call gsi_bundlegetvar ( grade%step(1), 't' , se_tv, istatus )
+          call gsi_bundlegetvar ( grade%step(1), 'ps', se_ps, istatus )
+          grade%step(1)%values=zero
+       end do
+       val%values=zero
+       do ig=1,naensgrp
+          do n=1,n_ens
+             grade%aens(1,ig,n)%values=zero
+          end do
+       end do
+    elseif(iflg==1) then
+       allocate(values(n_ens,naensgrp,nelen))
+       do ig=1,ntotensgrp
+          do n=1,n_ens
+             values(n,ig,:)=en_perts(n,ig,1)%valuesr4(:)
+             en_perts(n,ig,1)%valuesr4=en_perts(n,ig,1)%valuesr4*en_etlm(ig)%valuesr4
+          end do
+       end do
+       grade%step(1)%values=zero
+       if(dual_res) then
+          call ensemble_forward_model_dual_res(grade%step(1),grade%aens(1,:,:),1)
+       else
+          call ensemble_forward_model(grade%step(1),grade%aens(1,:,:),1)
+       end if
+       do ig=1,naensgrp
+          do n=1,n_ens
+             grade%aens(1,ig,n)%values=zero
+          end do
+       end do
+       do ig=1,ntotensgrp
+          do n=1,n_ens
+             en_perts(n,ig,1)%valuesr4(:)=values(n,ig,:)
+          end do
+       end do
+       deallocate(values)
+       call gsi_bundleputvar ( val, 'u', zero, istatus )
+       call gsi_bundleputvar ( val, 'v', zero, istatus )
+       call gsi_bundleputvar ( val, 'tv', zero, istatus )
+       call gsi_bundleputvar ( val, 'ps', zero, istatus )
+       if(uv_hyb_ens) then
+          call gsi_bundlegetvar ( grade%step(1), 'sf', sv_u, istatus )
+          call gsi_bundlegetvar ( grade%step(1), 'vp', sv_v, istatus )
+       else
+          call gsi_bundlegetpointer ( grade%step(1), 'sf', cv_sf, istatus )
+          call gsi_bundlegetpointer ( grade%step(1), 'vp', cv_vp, istatus )
+          call getuv(sv_u,sv_v,cv_sf,cv_vp,0)
+       end if
+       call gsi_bundlegetvar ( grade%step(1), 't' , sv_tv, istatus )
+       call gsi_bundlegetvar ( grade%step(1), 'ps', sv_ps, istatus )
+       grade%step(1)%values=zero
+    end if
+
+    call deallocate_cv(grade)
+    return
+  end subroutine etlm
 
   subroutine special_sd2h0
 !$$$  subprogram documentation block
@@ -4170,6 +4472,7 @@ subroutine hybens_localization_setup
                                          vvlocal,s_ens_h,s_ens_hv,s_ens_v,s_ens_vv
    use hybrid_ensemble_parameters, only: ntotensgrp,naensgrp,naensloc,ntlevs_ens,nsclgrp
    use hybrid_ensemble_parameters, only: en_perts
+   use hybrid_ensemble_parameters, only: en_etlm,l_etlm,nelen
    use gsi_io, only: verbose
 
    implicit none
@@ -4382,6 +4685,31 @@ subroutine hybens_localization_setup
             do n=1,n_ens
                en_perts(n,ig,m)%valuesr4=en_perts(n,ig-nsclgrp,m)%valuesr4
             enddo
+         enddo
+      enddo
+   endif
+   if(l_etlm) then
+      allocate(en_etlm(ntotensgrp))
+      call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
+      do ig=1,ntotensgrp
+         call gsi_bundlecreate(en_etlm(ig),grid_ens,'ensemble etlm',istatus, &
+                               names2d=cvars2d,names3d=cvars3d,bundle_kind=r_single)
+         if(istatus/=0) then
+            write(6,*)trim(myname_),': trouble creating en_etlm bundle'
+            call stop2(999)
+         endif
+      enddo
+      do ig=1,ntotensgrp
+         en_etlm(ig)%valuesr4=zero
+         do n=1,n_ens
+            en_etlm(ig)%valuesr4=en_etlm(ig)%valuesr4+en_perts(n,ig,1)%valuesr4**2
+         enddo
+         do ii=1,nelen
+            if(en_etlm(ig)%valuesr4(ii)>epsilon(one)) then
+               en_etlm(ig)%valuesr4(ii)=one/en_etlm(ig)%valuesr4(ii)
+            else
+               en_etlm(ig)%valuesr4(ii)=zero
+            endif
          enddo
       enddo
    endif

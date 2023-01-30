@@ -180,7 +180,7 @@ subroutine pcgsoi()
   real(r_quad),dimension(4):: dprod
   type(control_vector) :: gradx,grady,dirx,diry,ydiff,xdiff
   type(gsi_bundle) :: sval(nobs_bins), rval(nobs_bins)
-  type(gsi_bundle) :: eval(ntlevs_ens)
+  type(gsi_bundle) :: eval(ntlevs_ens), emval(ntlevs_ens)
   type(gsi_bundle) :: mval(nsubwin)
   type(predictors) :: sbias, rbias
   
@@ -710,6 +710,7 @@ subroutine init_
 
   do ii=1,ntlevs_ens
      call allocate_state(eval(ii))
+     call allocate_state(emval(ii))
   end do
 
   gradx=zero
@@ -772,6 +773,7 @@ subroutine clean_
   end do
   do ii=1,ntlevs_ens
      call deallocate_state(eval(ii))
+     call deallocate_state(emval(ii))
   end do
 ! call inquire_state
 
@@ -898,8 +900,8 @@ subroutine c2s(hat,val,bias,llprt,ltest)
 !
 !$$$ end documentation block
 
-  use hybrid_ensemble_parameters,only : l_hyb_ens
-  use hybrid_ensemble_isotropic, only: bkerror_a_en
+  use hybrid_ensemble_parameters,only : l_hyb_ens, l_etlm
+  use hybrid_ensemble_isotropic, only: etlm
   use control_vectors, only: control_vector
   use bias_predictors, only: predictors
   use gsi_bundlemod, only : gsi_bundle,assignment(=)
@@ -929,7 +931,12 @@ subroutine c2s(hat,val,bias,llprt,ltest)
         call model_tl(mval,val,llprt)
      else
         if (l_hyb_ens) then
-           call ensctl2state(hat,mval(1),eval)
+           if (l_etlm) then
+              call etlm(mval(1),emval,0)
+              call ensctl2state(hat,emval,eval)
+           else
+              call ensctl2state(hat,mval(1),eval)
+           end if
            do ii=1,nobs_bins
               val(ii)=eval(ii)
            end do
@@ -964,8 +971,8 @@ subroutine c2s_ad(hat,val,bias,llprt)
 !
 !$$$ end documentation block
 
-  use hybrid_ensemble_parameters,only : l_hyb_ens
-  use hybrid_ensemble_isotropic, only: bkerror_a_en
+  use hybrid_ensemble_parameters,only : l_hyb_ens, l_etlm
+  use hybrid_ensemble_isotropic, only: etlm
   use control_vectors, only: control_vector
   use bias_predictors, only: predictors
   use gsi_bundlemod, only : gsi_bundle,assignment(=)
@@ -995,7 +1002,12 @@ subroutine c2s_ad(hat,val,bias,llprt)
            do ii=1,nobs_bins
               eval(ii)=val(ii)
            end do
-           call ensctl2state_ad(eval,mval(1),hat)
+           if (l_etlm) then
+              call ensctl2state_ad(eval,emval,hat)
+              call etlm(mval(1),emval,1)
+           else
+              call ensctl2state_ad(eval,mval(1),hat)
+           end if
         else
            mval(1)=val(1)
            if (nobs_bins > 1 ) then

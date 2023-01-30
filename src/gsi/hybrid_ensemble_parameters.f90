@@ -307,11 +307,15 @@ module hybrid_ensemble_parameters
   public :: write_ens_sprd
   public :: nval_lenz_en
   public :: ntlevs_ens
+  public :: l_etlm
+  public :: ig_etlm
+  public :: ntlevs_etlm
   public :: i_en_perts_io
   public :: l_ens_in_diff_time
   public :: ensemble_path
   public :: nelen
   public :: en_perts,ps_bar
+  public :: en_etlm
   public :: region_lat_ens,region_lon_ens
   public :: region_dx_ens,region_dy_ens
   public :: naensgrp,ntotensgrp,nsclgrp,naensloc,ngvarloc
@@ -343,6 +347,8 @@ module hybrid_ensemble_parameters
   logical l_ens_in_diff_time
   logical ens_fast_read
   logical l_both_fv3sar_gfs_ens
+  logical l_etlm
+  integer(i_kind) ig_etlm
   integer(i_kind) i_en_perts_io
   integer(i_kind) n_ens,nlon_ens,nlat_ens,jcap_ens,jcap_ens_test
   integer(i_kind) n_ens_gfs,n_ens_fv3sar
@@ -368,6 +374,7 @@ module hybrid_ensemble_parameters
 !          nhoriz = (sp_loc%jcap+1)*(sp_loc%jcap+2) for global
   integer(i_kind) nval_lenz_en
   integer(i_kind) ntlevs_ens
+  integer(i_kind) ntlevs_etlm
   integer(i_kind) regional_ensemble_option
   integer(i_kind) fv3sar_ensemble_opt 
   character(len=512),save :: ensemble_path
@@ -391,6 +398,7 @@ module hybrid_ensemble_parameters
 
   integer(i_kind) nelen
   type(gsi_bundle),save,allocatable :: en_perts(:,:,:)
+  type(gsi_bundle),save,allocatable :: en_etlm(:)
   real(r_single),dimension(:,:,:),allocatable:: ps_bar
 
 !    following is for interpolation of global ensemble to regional ensemble grid
@@ -467,6 +475,9 @@ subroutine init_hybrid_ensemble_parameters
   s_ens_v = 30._r_kind       ! grid units
   nval_lenz_en=-1            ! initialize dimension to absurd value
   ntlevs_ens=1               ! default for number of time levels for ensemble perturbations
+  l_etlm=.false.
+  ig_etlm=0
+  ntlevs_etlm=1
   i_en_perts_io=0            ! default for en_pert IO. 0 is no IO
   ensemble_path = './'       ! default for path to ensemble members
   ens_fast_read=.false.
