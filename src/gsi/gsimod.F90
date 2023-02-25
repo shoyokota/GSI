@@ -152,7 +152,7 @@
                          l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB, &
                          ntotensgrp,nsclgrp,naensgrp,ngvarloc,ntlevs_ens,naensloc, &
                          r_ensloccov4tim,r_ensloccov4var,r_ensloccov4scl,l_timloc_opt, &
-                         l_etlm,ig_etlm
+                         l_etlm,infl_etlm
   use hybrid_ensemble_parameters,only : l_both_fv3sar_gfs_ens,n_ens_gfs,n_ens_fv3sar,weight_ens_gfs,weight_ens_fv3sar
   use rapidrefresh_cldsurf_mod, only: init_rapidrefresh_cldsurf, &
                             dfi_radar_latent_heat_time_period,metar_impact_radius,&
@@ -1367,7 +1367,7 @@
                 oz_univ_static,write_ens_sprd,use_localization_grid,use_gfs_ens, &
                 i_en_perts_io,l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB, &
                 nsclgrp,l_timloc_opt,ngvarloc,naensloc,r_ensloccov4tim,r_ensloccov4var,r_ensloccov4scl, &
-                l_etlm,ig_etlm
+                l_etlm,infl_etlm
 
 ! rapidrefresh_cldsurf (options for cloud analysis and surface 
 !                             enhancement for RR appilcation  ):

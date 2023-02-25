@@ -308,8 +308,8 @@ module hybrid_ensemble_parameters
   public :: nval_lenz_en
   public :: ntlevs_ens
   public :: l_etlm
-  public :: ig_etlm
   public :: ntlevs_etlm
+  public :: infl_etlm
   public :: i_en_perts_io
   public :: l_ens_in_diff_time
   public :: ensemble_path
@@ -348,7 +348,6 @@ module hybrid_ensemble_parameters
   logical ens_fast_read
   logical l_both_fv3sar_gfs_ens
   logical l_etlm
-  integer(i_kind) ig_etlm
   integer(i_kind) i_en_perts_io
   integer(i_kind) n_ens,nlon_ens,nlat_ens,jcap_ens,jcap_ens_test
   integer(i_kind) n_ens_gfs,n_ens_fv3sar
@@ -358,6 +357,7 @@ module hybrid_ensemble_parameters
   integer(i_kind),parameter::max_nvars=100
   real(r_kind) s_ens_h(max_naensloc)
   real(r_kind) s_ens_v(max_naensloc)
+  real(r_kind) infl_etlm(max_naensloc)
   type(sub2grid_info),save :: grd_ens,grd_loc,grd_sploc,grd_anl,grd_e1,grd_a1
   type(spec_vars),save :: sp_ens,sp_loc
   type(egrid2agrid_parm),save :: p_e2a,p_sploc2ens
@@ -476,8 +476,8 @@ subroutine init_hybrid_ensemble_parameters
   nval_lenz_en=-1            ! initialize dimension to absurd value
   ntlevs_ens=1               ! default for number of time levels for ensemble perturbations
   l_etlm=.false.
-  ig_etlm=0
   ntlevs_etlm=1
+  infl_etlm=one
   i_en_perts_io=0            ! default for en_pert IO. 0 is no IO
   ensemble_path = './'       ! default for path to ensemble members
   ens_fast_read=.false.

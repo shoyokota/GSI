@@ -2453,7 +2453,7 @@ end subroutine normal_new_factorization_rf_y
     use hybrid_ensemble_parameters, only: alphacvarsclgrpmat
     use hybrid_ensemble_parameters, only: nval_lenz_en
     use hybrid_ensemble_parameters, only: uv_hyb_ens,dual_res,nelen
-    use hybrid_ensemble_parameters, only: en_perts,en_etlm,ig_etlm,ntlevs_etlm
+    use hybrid_ensemble_parameters, only: en_perts,en_etlm,ntlevs_etlm,infl_etlm
     use gsi_bundlemod, only: gsi_bundlegetvar
     use gsi_bundlemod, only: gsi_bundleputvar
     implicit none
@@ -2462,7 +2462,7 @@ end subroutine normal_new_factorization_rf_y
     type(gsi_bundle),intent(inout) :: eval(ntlevs_etlm)
     integer(i_kind),intent(in) :: iflg
 
-    integer(i_kind) ii,n,istatus,k,ig,ig2,ig0
+    integer(i_kind) ii,n,istatus,k,ig,ig2
     integer(i_kind) ipnts(4),is_u,is_v,is_tv,is_ps,ic_sf,ic_vp,ic_t,ic_ps
     real(r_kind),pointer,dimension(:,:,:) :: sv_u=>NULL()
     real(r_kind),pointer,dimension(:,:,:) :: sv_v=>NULL()
@@ -2479,6 +2479,7 @@ end subroutine normal_new_factorization_rf_y
     real(r_kind),allocatable,dimension(:,:) :: z
     real(r_kind),allocatable,dimension(:) :: ztmp
     real(r_kind),allocatable,dimension(:,:,:) :: values
+    real(r_kind),allocatable,dimension(:):: sqrt_infl_etlm
     logical dobal
     type(control_vector) :: grade
 
@@ -2529,7 +2530,6 @@ end subroutine normal_new_factorization_rf_y
     call gsi_bundlegetpointer ( val, 'tv', sv_tv, istatus )
     call gsi_bundlegetpointer ( val, 'ps', sv_ps, istatus )
 
-    ig0=ig_etlm
     if(iflg==0) then
        grade%step(1)%values=zero
        if(uv_hyb_ens) then
@@ -2559,9 +2559,9 @@ end subroutine normal_new_factorization_rf_y
           end do
        end do
        if(dual_res) then
-          call ensemble_forward_model_ad_dual_res(grade%step(1),grade%aens(1,:,:),1)
+          call ensemble_forward_model_ad_dual_res(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),1)
        else
-          call ensemble_forward_model_ad(grade%step(1),grade%aens(1,:,:),1)
+          call ensemble_forward_model_ad(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),1)
        end if
        grade%step(1)%values=zero
        do ig=1,ntotensgrp
@@ -2598,9 +2598,9 @@ end subroutine normal_new_factorization_rf_y
           call gsi_bundleputvar ( eval(ii), 'tv', zero, istatus )
           call gsi_bundleputvar ( eval(ii), 'ps', zero, istatus )
           if(dual_res) then
-             call ensemble_forward_model_ad_dual_res(grade%step(1),grade%aens(1,:,:),ii)
+             call ensemble_forward_model_ad_dual_res(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),ii)
           else
-             call ensemble_forward_model_ad(grade%step(1),grade%aens(1,:,:),ii)
+             call ensemble_forward_model_ad(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),ii)
           end if
           grade%step(1)%values=zero
           val%values=val%values+eval(ii)%values
@@ -2608,34 +2608,45 @@ end subroutine normal_new_factorization_rf_y
        end do
     end if
 
-    if (naensgrp==1) then
-       if(ig_etlm<=0) ig0=1
-       call bkgcov_a_en_new_factorization(ig0,grade%aens(1,1,1:n_ens))
-    else
-       allocate(z(naensgrp,nval_lenz_en))
+    allocate(z(naensgrp,nval_lenz_en))
+    if(iflg==0) then
        do ig=1,naensgrp
-          if(ig_etlm<=0) ig0=ig
-          call ckgcov_a_en_new_factorization_ad(ig0,z(ig,:),grade%aens(1,ig,1:n_ens))
+          call ckgcov_a_en_new_factorization_ad(0,z(ig,:),grade%aens(1,ig,1:n_ens))
        enddo
-       allocate(ztmp(naensgrp))
-       do k=1,nval_lenz_en
-          ztmp=zero
-          do ig=1,naensgrp
-             do ig2=1,naensgrp
-                ztmp(ig) = ztmp(ig) + z(ig2,k) * alphacvarsclgrpmat(ig,ig2)
-             enddo
-          enddo
-          do ig=1,naensgrp
-             z(ig,k) = ztmp(ig)
-          enddo
-       enddo
-       deallocate(ztmp)
+    elseif(iflg==1) then
        do ig=1,naensgrp
-          if(ig_etlm<=0) ig0=ig
-          call ckgcov_a_en_new_factorization(ig0,z(ig,:),grade%aens(1,ig,1:n_ens))
+          call ckgcov_a_en_new_factorization_ad(ig,z(ig,:),grade%aens(1,ig,1:n_ens))
        enddo
-       deallocate(z)
-    endif
+    end if
+    allocate(ztmp(naensgrp))
+    allocate(sqrt_infl_etlm(naensgrp))
+    sqrt_infl_etlm = sqrt(infl_etlm(1:naensgrp))
+    do k=1,nval_lenz_en
+       do ig=1,naensgrp
+          z(ig,k) = z(ig,k) * sqrt_infl_etlm(ig)
+       enddo
+       ztmp=zero
+       do ig=1,naensgrp
+          do ig2=1,naensgrp
+             ztmp(ig) = ztmp(ig) + z(ig2,k) * alphacvarsclgrpmat(ig,ig2)
+          enddo
+       enddo
+       do ig=1,naensgrp
+          z(ig,k) = ztmp(ig) * sqrt_infl_etlm(ig)
+       enddo
+    enddo
+    deallocate(ztmp)
+    deallocate(sqrt_infl_etlm)
+    if(iflg==0) then
+       do ig=1,naensgrp
+          call ckgcov_a_en_new_factorization(ig,z(ig,:),grade%aens(1,ig,1:n_ens))
+       enddo
+    elseif(iflg==1) then
+       do ig=1,naensgrp
+          call ckgcov_a_en_new_factorization(0,z(ig,:),grade%aens(1,ig,1:n_ens))
+       enddo
+    end if
+    deallocate(z)
 
     if(iflg==0) then
        do ii=1,ntlevs_etlm
@@ -2647,9 +2658,9 @@ end subroutine normal_new_factorization_rf_y
           call gsi_bundlegetpointer ( eval(ii), 'tv', se_tv, istatus )
           call gsi_bundlegetpointer ( eval(ii), 'ps', se_ps, istatus )
           if(dual_res) then
-             call ensemble_forward_model_dual_res(grade%step(1),grade%aens(1,:,:),ii)
+             call ensemble_forward_model_dual_res(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),ii)
           else
-             call ensemble_forward_model(grade%step(1),grade%aens(1,:,:),ii)
+             call ensemble_forward_model(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),ii)
           end if
           call gsi_bundleputvar ( eval(ii), 'u', zero, istatus )
           call gsi_bundleputvar ( eval(ii), 'v', zero, istatus )
@@ -2674,7 +2685,7 @@ end subroutine normal_new_factorization_rf_y
           end do
        end do
     elseif(iflg==1) then
-       allocate(values(n_ens,naensgrp,nelen))
+       allocate(values(n_ens,ntotensgrp,nelen))
        do ig=1,ntotensgrp
           do n=1,n_ens
              values(n,ig,:)=en_perts(n,ig,1)%valuesr4(:)
@@ -2683,9 +2694,9 @@ end subroutine normal_new_factorization_rf_y
        end do
        grade%step(1)%values=zero
        if(dual_res) then
-          call ensemble_forward_model_dual_res(grade%step(1),grade%aens(1,:,:),1)
+          call ensemble_forward_model_dual_res(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),1)
        else
-          call ensemble_forward_model(grade%step(1),grade%aens(1,:,:),1)
+          call ensemble_forward_model(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),1)
        end if
        do ig=1,naensgrp
           do n=1,n_ens
@@ -4137,6 +4148,8 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
 !     no work to be done on this processor, but hwork still has allocated space, since
 !                     grd_loc%kend_alloc = grd_loc%kbegin_loc in this case, so set to zero.
      hwork=zero
+  elseif(ig==0) then
+     hwork=z
   else
 ! Apply horizontal smoother for number of horizontal scales
      if(regional) then
@@ -4173,12 +4186,14 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
   deallocate(a_en_work)
 
 ! Apply vertical smoother on each ensemble member
-  do k=1,n_ens
+  if(ig/=0) then
+     do k=1,n_ens
 
-     iadvance=2 ; iback=1
-     call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
+        iadvance=2 ; iback=1
+        call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
 
-  enddo
+     enddo
+  endif
 
   return
 end subroutine ckgcov_a_en_new_factorization
@@ -4245,12 +4260,14 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
   endif
 
 ! Apply vertical smoother on each ensemble member
-  do k=1,n_ens
+  if(ig/=0) then
+     do k=1,n_ens
 
-     iadvance=1 ; iback=2
-     call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
+        iadvance=1 ; iback=2
+        call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
  
-  enddo
+     enddo
+  endif
 
 ! To avoid my having to touch the general sub2grid and grid2sub,
 ! get copy for ensemble components to work array
@@ -4275,6 +4292,8 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
 !     no work to be done on this processor, but z still has allocated space, since
 !                     grd_loc%kend_alloc = grd_loc%kbegin_loc in this case, so set to zero.
      z=zero
+  elseif(ig==0) then
+     z=hwork
   else
 ! Apply horizontal smoother for number of horizontal scales
      if(regional) then
@@ -4461,8 +4480,8 @@ subroutine hybens_localization_setup
 !
 !$$$
    use kinds, only: r_kind,i_kind
-   use constants, only: one,zero
-   use mpimod, only: mype
+   use constants, only: one,zero,r100
+   use mpimod, only: mype,mpi_comm_world,mpi_rtype,npe
    use gridmod,only: regional
    use gfs_stratosphere, only: use_gfs_stratosphere,blend_rm
    use hybrid_ensemble_parameters, only: grd_ens,jcap_ens,n_ens,grd_loc,sp_loc,&
@@ -4473,6 +4492,7 @@ subroutine hybens_localization_setup
    use hybrid_ensemble_parameters, only: ntotensgrp,naensgrp,naensloc,ntlevs_ens,nsclgrp
    use hybrid_ensemble_parameters, only: en_perts
    use hybrid_ensemble_parameters, only: en_etlm,l_etlm,nelen
+   use gsi_bundlemod, only : gsi_bundlesum
    use gsi_io, only: verbose
 
    implicit none
@@ -4480,7 +4500,7 @@ subroutine hybens_localization_setup
    integer(i_kind),parameter   :: lunin = 47
    character(len=40),parameter :: fname = 'hybens_info'
    integer(i_kind) :: k,msig,istat,nz,kl
-   integer(i_kind) :: n,nk,m,ig,ic3,ic2,ipic,istatus,ii
+   integer(i_kind) :: n,nk,m,ig,ic3,ic2,ipic,istatus,ii,i,j
    integer(i_kind) :: ipc3d(nc3d),ipc2d(nc2d)
    logical         :: lexist,print_verbose
    real(r_kind),allocatable:: s_ens_h_gu_x(:,:),s_ens_h_gu_y(:,:)
@@ -4488,6 +4508,8 @@ subroutine hybens_localization_setup
    type(gsi_bundle) :: a_en(n_ens)
    type(gsi_grid)  :: grid_ens
    real(r_kind), pointer :: values(:) => NULL()
+   real(r_kind),allocatable:: sumloc(:),sumall(:,:)
+   real(r_kind) :: numloc,numall(npe),sprd_min
    character(len=*),parameter::myname_=myname//'*hybens_localization_setup'
 
    l_read_success=.false.
@@ -4615,7 +4637,7 @@ subroutine hybens_localization_setup
       call init_sf_xy(jcap_ens)
    endif
 
-   if(ntotensgrp>1) then
+   if(ntotensgrp>1.or.l_etlm) then
       call gsi_bundlegetpointer(en_perts(1,1,1),cvars3d,ipc3d,istatus)
       if(istatus/=0) then
          write(6,*) myname_,': cannot find 3d pointers'
@@ -4626,8 +4648,10 @@ subroutine hybens_localization_setup
          write(6,*) myname_,': cannot find 2d pointers'
          call stop2(999)
       endif
+      if(nsclgrp>1.or.l_etlm) call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
+   endif
+   if(ntotensgrp>1) then
       if(nsclgrp>1) then
-         call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
          allocate(values(grd_ens%latlon11*grd_ens%nsig*n_ens))
          do ig=1,nsclgrp-1
             ii=0
@@ -4698,19 +4722,73 @@ subroutine hybens_localization_setup
             write(6,*)trim(myname_),': trouble creating en_etlm bundle'
             call stop2(999)
          endif
-      enddo
-      do ig=1,ntotensgrp
          en_etlm(ig)%valuesr4=zero
-         do n=1,n_ens
-            en_etlm(ig)%valuesr4=en_etlm(ig)%valuesr4+en_perts(n,ig,1)%valuesr4**2
+         allocate(sumloc(grd_ens%nsig*nc3d+nc2d))
+         allocate(sumall(grd_ens%nsig*nc3d+nc2d,npe))
+         ii=0
+         do ic3=1,nc3d
+            ipic=ipc3d(ic3)
+            do k=1,grd_ens%nsig
+               ii=ii+1
+               do n=1,n_ens
+                  en_etlm(ig)%r3(ipic)%qr4(:,:,k)=en_etlm(ig)%r3(ipic)%qr4(:,:,k)+en_perts(n,ig,1)%r3(ipic)%qr4(:,:,k)**2
+               enddo
+               sumloc(ii)=gsi_bundlesum(en_etlm(ig)%r3(ipic)%qr4(:,:,k),ihalo=1)
+            enddo
          enddo
-         do ii=1,nelen
-            if(en_etlm(ig)%valuesr4(ii)>epsilon(one)) then
-               en_etlm(ig)%valuesr4(ii)=one/en_etlm(ig)%valuesr4(ii)
-            else
-               en_etlm(ig)%valuesr4(ii)=zero
-            endif
+         do ic2=1,nc2d
+            ipic=ipc2d(ic2)
+            ii=ii+1
+            do n=1,n_ens
+               en_etlm(ig)%r2(ipic)%qr4(:,:)=en_etlm(ig)%r2(ipic)%qr4(:,:)+en_perts(n,ig,1)%r2(ipic)%qr4(:,:)**2
+            enddo
+            sumloc(ii)=gsi_bundlesum(en_etlm(ig)%r2(ipic)%qr4(:,:),ihalo=1)
          enddo
+         numloc=real((grd_ens%lat2-2)*(grd_ens%lon2-2),r_kind)
+         call mpi_allgather(sumloc,grd_ens%nsig*nc3d+nc2d,mpi_rtype,&
+              &             sumall,grd_ens%nsig*nc3d+nc2d,mpi_rtype,mpi_comm_world,istatus)
+         call mpi_allgather(numloc,1,mpi_rtype,&
+              &             numall,1,mpi_rtype,mpi_comm_world,istatus)
+         numloc=sum(numall(:))
+         ii=0
+         do ic3=1,nc3d
+            ipic=ipc3d(ic3)
+            do k=1,grd_ens%nsig
+               ii=ii+1
+               sumloc(ii)=sum(sumall(ii,:))
+               sprd_min=sumloc(ii)/numloc/r100
+               do j=1,grd_ens%lon2
+                  do i=1,grd_ens%lat2
+                     if(en_etlm(ig)%r3(ipic)%qr4(i,j,k)<epsilon(one)) then
+                        en_etlm(ig)%r3(ipic)%qr4(i,j,k)=zero
+                     elseif(en_etlm(ig)%r3(ipic)%qr4(i,j,k)<sprd_min) then
+                        en_etlm(ig)%r3(ipic)%qr4(i,j,k)=one/sprd_min
+                     else
+                        en_etlm(ig)%r3(ipic)%qr4(i,j,k)=one/en_etlm(ig)%r3(ipic)%qr4(i,j,k)
+                     endif
+                  enddo
+               enddo
+            enddo
+         enddo
+         do ic2=1,nc2d
+            ipic=ipc2d(ic2)
+            ii=ii+1
+            sumloc(ii)=sum(sumall(ii,:))
+            sprd_min=sumloc(ii)/numloc/r100
+            do j=1,grd_ens%lon2
+               do i=1,grd_ens%lat2
+                  if(en_etlm(ig)%r2(ipic)%qr4(i,j)<epsilon(one)) then
+                     en_etlm(ig)%r2(ipic)%qr4(i,j)=zero
+                  elseif(en_etlm(ig)%r2(ipic)%qr4(i,j)<sprd_min) then
+                     en_etlm(ig)%r2(ipic)%qr4(i,j)=one/sprd_min
+                  else
+                     en_etlm(ig)%r2(ipic)%qr4(i,j)=one/en_etlm(ig)%r2(ipic)%qr4(i,j)
+                  endif
+               enddo
+            enddo
+         enddo
+         deallocate(sumloc)
+         deallocate(sumall)
       enddo
    endif
 
