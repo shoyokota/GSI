@@ -817,7 +817,7 @@ subroutine normal_new_factorization_rf_z
 
   use kinds, only: r_kind,i_kind
   use hybrid_ensemble_parameters, only: grd_ens
-  use hybrid_ensemble_parameters, only: naensgrp,naensloc
+  use hybrid_ensemble_parameters, only: naensgrp,naensloc,l_etlm
   use constants, only: zero,one
   implicit none
 
@@ -831,7 +831,13 @@ subroutine normal_new_factorization_rf_z
 
   znorm_new=one
 
-  do ig=1,naensgrp
+  do ig=1,naensloc
+     if(l_etlm) then
+        if(ig>naensgrp.and.ig/=naensloc-1) cycle
+     else
+        if(ig>naensgrp) cycle
+     endif
+
      do k=1,grd_ens%nsig
         f=zero
         f(:,k)=one
@@ -898,7 +904,7 @@ subroutine normal_new_factorization_rf_x
 
   use kinds, only: r_kind,i_kind
   use hybrid_ensemble_parameters, only: grd_loc,vvlocal
-  use hybrid_ensemble_parameters, only: naensgrp,naensloc
+  use hybrid_ensemble_parameters, only: naensgrp,naensloc,l_etlm
   use constants, only: zero,one
 
   implicit none
@@ -924,7 +930,13 @@ subroutine normal_new_factorization_rf_x
   allocate(diag(grd_loc%nlat,grd_loc%nlon,kl))
   xnorm_new=one
 
-  do ig=1,naensgrp
+  do ig=1,naensloc
+     if(l_etlm) then
+        if(ig>naensgrp.and.ig/=naensloc-1) cycle
+     else
+        if(ig>naensgrp) cycle
+     endif
+
      do j=1,grd_loc%nlon
         f=zero
         do k=1,kl
@@ -1002,7 +1014,7 @@ subroutine normal_new_factorization_rf_y
 
   use kinds, only: r_kind,i_kind
   use hybrid_ensemble_parameters, only: grd_loc,vvlocal
-  use hybrid_ensemble_parameters, only: naensgrp,naensloc
+  use hybrid_ensemble_parameters, only: naensgrp,naensloc,l_etlm
   use constants, only: zero,one
   implicit none
 
@@ -1037,8 +1049,14 @@ subroutine normal_new_factorization_rf_y
     lend=grd_loc%nlat/grd_loc%nlon + 1
     iend=grd_loc%nlon 
   endif
-              
-  do ig=1,naensgrp
+
+  do ig=1,naensloc
+     if(l_etlm) then
+        if(ig>naensgrp.and.ig/=naensloc-1) cycle
+     else
+        if(ig>naensgrp) cycle
+     endif
+
      do loop=1,lend
         ll=(loop-1)*iend
         f=zero
@@ -1123,23 +1141,25 @@ end subroutine normal_new_factorization_rf_y
     use constants, only: zero
     use hybrid_ensemble_parameters, only: n_ens,grd_ens,ntlevs_ens
     use hybrid_ensemble_parameters, only: nelen,en_perts,ps_bar
-    use hybrid_ensemble_parameters, only: ntotensgrp
+    use hybrid_ensemble_parameters, only: ntotensgrp,l_etlm
 
     implicit none
 
     type(gsi_grid)  :: grid_ens
 
-    integer(i_kind) n,istatus,m,ig
+    integer(i_kind) n,istatus,m,ig,i_etlm
     character(len=*),parameter::myname_=trim(myname)//'*create_ensemble'
 
     nelen=grd_ens%latlon11*(max(0,nc3d)*grd_ens%nsig+max(0,nc2d))
 !   create ensemble perturbations bundles (using newly added r_single capability
 
-    allocate(en_perts(n_ens,ntotensgrp,ntlevs_ens))
+    i_etlm=0
+    if(l_etlm) i_etlm=1
+    allocate(en_perts(n_ens,ntotensgrp+i_etlm,1-i_etlm:ntlevs_ens))
     call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
  
-    do m=1,ntlevs_ens
-       do ig=1,ntotensgrp
+    do m=1-i_etlm,ntlevs_ens
+       do ig=1,ntotensgrp+i_etlm
           do n=1,n_ens
              call gsi_bundlecreate(en_perts(n,ig,m),grid_ens,'ensemble perts',istatus, &
                                    names2d=cvars2d,names3d=cvars3d,bundle_kind=r_single)
@@ -1733,14 +1753,16 @@ end subroutine normal_new_factorization_rf_y
 !
 !$$$
     use hybrid_ensemble_parameters, only: l_hyb_ens,n_ens,ntlevs_ens
-    use hybrid_ensemble_parameters, only: en_perts,ps_bar
+    use hybrid_ensemble_parameters, only: en_perts,ps_bar,l_etlm
     use hybrid_ensemble_parameters, only: ntotensgrp
     implicit none
 
-    integer(i_kind) istatus,n,m,ig
+    integer(i_kind) istatus,n,m,ig,i_etlm
 
     if(l_hyb_ens) then
-       do m=1,ntlevs_ens
+       i_etlm=0
+       if(l_etlm) i_etlm=1
+       do m=1-i_etlm,ntlevs_ens
           do ig=1,ntotensgrp
              do n=1,n_ens
                 call gsi_bundleunset(en_perts(n,ig,m),istatus)
@@ -1758,7 +1780,7 @@ end subroutine normal_new_factorization_rf_y
 
   end subroutine destroy_ensemble
 
-  subroutine ensemble_forward_model(cvec,a_en,ibin)
+  subroutine ensemble_forward_model(cvec,a_en,ibin_in,ig_offset)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    ensemble_forward_model  add ensemble part to anl vars
@@ -1782,7 +1804,8 @@ end subroutine normal_new_factorization_rf_y
 !   input argument list:
 !     cvec      - 
 !     a_en      - 
-!     ibin      - integer bin number for ensemble perturbations  
+!     ibin_in   - integer bin number for ensemble perturbations  
+!     ig_offset - integer offset number of ensemble group (optional)
 ! 
 !   output argument list:
 !     cvec      - 
@@ -1804,12 +1827,17 @@ end subroutine normal_new_factorization_rf_y
     implicit none
     type(gsi_bundle),intent(inout) :: cvec
     type(gsi_bundle),intent(in)    :: a_en(naensgrp,n_ens)
-    integer,intent(in)             :: ibin
+    integer,intent(in)             :: ibin_in
+    integer,intent(in),optional    :: ig_offset
 
     character(len=*),parameter :: myname_=trim(myname)//'*ensemble_forward_model'
     logical :: nogood
     integer(i_kind) :: i,j,k,n,im,jm,km,ic2,ic3,ipic,ipx,km_tmp
-    integer(i_kind) :: ipc3d(nc3d),ipc2d(nc2d),istatus,ig,iaens
+    integer(i_kind) :: ipc3d(nc3d),ipc2d(nc2d),istatus,ig,iaens,ig0,ibin
+
+    ibin=max(ibin_in,1)
+    ig0=0
+    if(present(ig_offset)) ig0=ig_offset
 
     im=cvec%grid%im
     jm=cvec%grid%jm
@@ -1854,7 +1882,7 @@ end subroutine normal_new_factorization_rf_y
                    do j=1,jm
                       do i=1,im
                          cvec%r3(ipic)%q(i,j,k)=cvec%r3(ipic)%q(i,j,k) &
-                              +a_en(iaens,n)%r3(ipx)%q(i,j,k)*en_perts(n,ig,ibin)%r3(ipic)%qr4(i,j,k)
+                              +a_en(iaens,n)%r3(ipx)%q(i,j,k)*en_perts(n,ig0+ig,ibin_in)%r3(ipic)%qr4(i,j,k)
                       enddo
                    enddo
                 enddo
@@ -1890,7 +1918,7 @@ end subroutine normal_new_factorization_rf_y
                          do k=1,km_tmp
                             do i=1,im
                                cvec%r2(ipic)%q(i,j)=cvec%r2(ipic)%q(i,j) &
-                                    +a_en(iaens,n)%r3(ipx)%q(i,j,k)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
+                                    +a_en(iaens,n)%r3(ipx)%q(i,j,k)*en_perts(n,ig0+ig,ibin_in)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
                             enddo
                          enddo
                       enddo
@@ -1907,7 +1935,7 @@ end subroutine normal_new_factorization_rf_y
                       do j=1,jm
                          do i=1,im
                             cvec%r2(ipic)%q(i,j)=cvec%r2(ipic)%q(i,j) &
-                                 +a_en(iaens,n)%r3(ipx)%q(i,j,1)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)
+                                 +a_en(iaens,n)%r3(ipx)%q(i,j,1)*en_perts(n,ig0+ig,ibin_in)%r2(ipic)%qr4(i,j)
                          enddo
                       enddo
                    enddo ! enddo n_ens
@@ -1921,7 +1949,7 @@ end subroutine normal_new_factorization_rf_y
 
   end subroutine ensemble_forward_model
 
-  subroutine ensemble_forward_model_dual_res(cvec,a_en,ibin)
+  subroutine ensemble_forward_model_dual_res(cvec,a_en,ibin_in,ig_offset)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    ensemble_forward_model_dual_res  use for dualres option
@@ -1948,7 +1976,8 @@ end subroutine normal_new_factorization_rf_y
 !   input argument list:
 !     cvec      -
 !     a_en      -
-!     ibin      - integer bin number for ensemble perturbations
+!     ibin_in   - integer bin number for ensemble perturbations
+!     ig_offset - integer offset number of ensemble group (optional)
 !
 !   output argument list:
 !     cvec      - 
@@ -1973,13 +2002,18 @@ end subroutine normal_new_factorization_rf_y
 
     type(gsi_bundle),intent(inout) :: cvec
     type(gsi_bundle),intent(in)    :: a_en(naensgrp,n_ens)
-    integer,intent(in)             :: ibin
+    integer,intent(in)             :: ibin_in
+    integer,intent(in),optional    :: ig_offset
 
     character(len=*),parameter::myname_=trim(myname)//'*ensemble_forward_model_dual_res'
     type(gsi_grid)   :: grid_ens,grid_anl
     type(gsi_bundle) :: work_ens,work_anl
     integer(i_kind) :: i,j,k,n,im,jm,km,ic2,ic3,ipic,ipx,km_tmp
-    integer(i_kind) :: ipc2d(nc2d),ipc3d(nc3d),istatus,ig,iaens
+    integer(i_kind) :: ipc2d(nc2d),ipc3d(nc3d),istatus,ig,iaens,ig0,ibin
+
+    ibin=max(ibin_in,1)
+    ig0=0
+    if(present(ig_offset)) ig0=ig_offset
 
 !   Request ensemble-corresponding fields from control vector
 !    NOTE:  because ensemble perturbation bundle structure is same as control vector, use same ipc3d and
@@ -2031,7 +2065,7 @@ end subroutine normal_new_factorization_rf_y
                    do j=1,jm
                       do i=1,im
                          work_ens%r3(ipic)%q(i,j,k)=work_ens%r3(ipic)%q(i,j,k) &
-                              +a_en(iaens,n)%r3(ipx)%q(i,j,k)*en_perts(n,ig,ibin)%r3(ipic)%qr4(i,j,k)
+                              +a_en(iaens,n)%r3(ipx)%q(i,j,k)*en_perts(n,ig0+ig,ibin_in)%r3(ipic)%qr4(i,j,k)
                       enddo
                    enddo
                 enddo
@@ -2066,7 +2100,7 @@ end subroutine normal_new_factorization_rf_y
                          do j=1,jm
                             do i=1,im
                                work_ens%r2(ipic)%q(i,j)=work_ens%r2(ipic)%q(i,j) &
-                                    +a_en(iaens,n)%r3(ipx)%q(i,j,k)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
+                                    +a_en(iaens,n)%r3(ipx)%q(i,j,k)*en_perts(n,ig0+ig,ibin_in)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
                             enddo
                          enddo
                       enddo
@@ -2083,7 +2117,7 @@ end subroutine normal_new_factorization_rf_y
                       do j=1,jm
                          do i=1,im
                             work_ens%r2(ipic)%q(i,j)=work_ens%r2(ipic)%q(i,j) &
-                                 +a_en(iaens,n)%r3(ipx)%q(i,j,1)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)
+                                 +a_en(iaens,n)%r3(ipx)%q(i,j,1)*en_perts(n,ig0+ig,ibin_in)%r2(ipic)%qr4(i,j)
                          enddo
                       enddo
                    enddo ! enddo n_ens
@@ -2115,7 +2149,7 @@ end subroutine normal_new_factorization_rf_y
 
   end subroutine ensemble_forward_model_dual_res
 
-  subroutine ensemble_forward_model_ad(cvec,a_en,ibin)
+  subroutine ensemble_forward_model_ad(cvec,a_en,ibin_in,ig_offset)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    ensemble_forward_model  add ensemble part to anl vars
@@ -2137,7 +2171,8 @@ end subroutine normal_new_factorization_rf_y
 !   input argument list:
 !     cvec      -
 !     a_en      -
-!     ibin      - integer bin number for ensemble perturbations
+!     ibin_in   - integer bin number for ensemble perturbations
+!     ig_offset - integer offset number of ensemble group (optional)
 !
 !   output argument list:
 !     cvec      -
@@ -2160,12 +2195,17 @@ end subroutine normal_new_factorization_rf_y
 
     type(gsi_bundle),intent(inout) :: cvec
     type(gsi_bundle),intent(inout) :: a_en(naensgrp,n_ens)
-    integer,intent(in)             :: ibin
+    integer,intent(in)             :: ibin_in
+    integer,intent(in),optional    :: ig_offset
 
     character(len=*),parameter :: myname_=trim(myname)//'*ensemble_forward_model_ad'
     logical :: nogood
     integer(i_kind) :: i,j,k,n,im,jm,km,ic2,ic3,ipx,ipic,km_tmp
-    integer(i_kind) :: ipc3d(nc3d),ipc2d(nc2d),istatus,ig,iaens
+    integer(i_kind) :: ipc3d(nc3d),ipc2d(nc2d),istatus,ig,iaens,ig0,ibin
+
+    ibin=max(ibin_in,1)
+    ig0=0
+    if(present(ig_offset)) ig0=ig_offset
 
     im=cvec%grid%im
     jm=cvec%grid%jm
@@ -2203,7 +2243,7 @@ end subroutine normal_new_factorization_rf_y
                    do j=1,jm
                       do i=1,im
                          a_en(iaens,n)%r3(ipx)%q(i,j,k)=a_en(iaens,n)%r3(ipx)%q(i,j,k) &
-                              +cvec%r3(ipic)%q(i,j,k)*en_perts(n,ig,ibin)%r3(ipic)%qr4(i,j,k)
+                              +cvec%r3(ipic)%q(i,j,k)*en_perts(n,ig0+ig,ibin_in)%r3(ipic)%qr4(i,j,k)
                       enddo
                    enddo
                 enddo
@@ -2227,7 +2267,7 @@ end subroutine normal_new_factorization_rf_y
                          do j=1,jm
                             do i=1,im
                                a_en(iaens,n)%r3(ipx)%q(i,j,k)=a_en(iaens,n)%r3(ipx)%q(i,j,k) &
-                                    +cvec%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
+                                    +cvec%r2(ipic)%q(i,j)*en_perts(n,ig0+ig,ibin_in)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
                             enddo
                          enddo
                       enddo
@@ -2237,7 +2277,7 @@ end subroutine normal_new_factorization_rf_y
                       do j=1,jm
                          do i=1,im
                             a_en(iaens,n)%r3(ipx)%q(i,j,1)=a_en(iaens,n)%r3(ipx)%q(i,j,1) &
-                                 +cvec%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)
+                                 +cvec%r2(ipic)%q(i,j)*en_perts(n,ig0+ig,ibin_in)%r2(ipic)%qr4(i,j)
                          enddo
                       enddo
  
@@ -2249,7 +2289,7 @@ end subroutine normal_new_factorization_rf_y
     return
   end subroutine ensemble_forward_model_ad
 
-  subroutine ensemble_forward_model_ad_dual_res(cvec,a_en,ibin)
+  subroutine ensemble_forward_model_ad_dual_res(cvec,a_en,ibin_in,ig_offset)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    ensemble_forward_model_ad_dual_res  use for dualres option
@@ -2276,7 +2316,8 @@ end subroutine normal_new_factorization_rf_y
 !   input argument list:
 !     cvec      -
 !     a_en      -
-!     ibin      - integer bin number for ensemble perturbations
+!     ibin_in   - integer bin number for ensemble perturbations
+!     ig_offset - integer offset number of ensemble group (optional)
 !
 !   output argument list:
 !     cvec      -
@@ -2302,13 +2343,18 @@ end subroutine normal_new_factorization_rf_y
 
     type(gsi_bundle),intent(inout) :: cvec
     type(gsi_bundle),intent(inout) :: a_en(naensgrp,n_ens)
-    integer,intent(in)             :: ibin
+    integer,intent(in)             :: ibin_in
+    integer,intent(in),optional    :: ig_offset
 
     character(len=*),parameter::myname_=trim(myname)//'*ensemble_forward_model_ad_dual_res'
     type(gsi_grid)   :: grid_ens,grid_anl
     type(gsi_bundle) :: work_ens,work_anl
     integer(i_kind) :: i,j,k,n,im,jm,km,ic2,ic3,ipx,ipic,km_tmp
-    integer(i_kind) :: ipc2d(nc2d),ipc3d(nc3d),istatus,ig,iaens
+    integer(i_kind) :: ipc2d(nc2d),ipc3d(nc3d),istatus,ig,iaens,ig0,ibin
+
+    ibin=max(ibin_in,1)
+    ig0=0
+    if(present(ig_offset)) ig0=ig_offset
 
 !   Request ensemble-corresponding fields from control vector
 !    NOTE:  because ensemble perturbation bundle structure is same as control vector, use same ipc3d and
@@ -2368,7 +2414,7 @@ end subroutine normal_new_factorization_rf_y
                    do j=1,jm
                       do i=1,im
                          a_en(iaens,n)%r3(ipx)%q(i,j,k)=a_en(iaens,n)%r3(ipx)%q(i,j,k) &
-                              +work_ens%r3(ipic)%q(i,j,k)*en_perts(n,ig,ibin)%r3(ipic)%qr4(i,j,k)
+                              +work_ens%r3(ipic)%q(i,j,k)*en_perts(n,ig0+ig,ibin_in)%r3(ipic)%qr4(i,j,k)
                       enddo
                    enddo
                 enddo
@@ -2392,7 +2438,7 @@ end subroutine normal_new_factorization_rf_y
                          do j=1,jm
                             do i=1,im
                                a_en(iaens,n)%r3(ipx)%q(i,j,k)=a_en(iaens,n)%r3(ipx)%q(i,j,k) &
-                                    +work_ens%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
+                                    +work_ens%r2(ipic)%q(i,j)*en_perts(n,ig0+ig,ibin_in)%r2(ipic)%qr4(i,j)*pwgt(i,j,k)
                             enddo
                          enddo
                       enddo
@@ -2402,7 +2448,7 @@ end subroutine normal_new_factorization_rf_y
                       do j=1,jm
                          do i=1,im
                             a_en(iaens,n)%r3(ipx)%q(i,j,1)=a_en(iaens,n)%r3(ipx)%q(i,j,1) &
-                                 +work_ens%r2(ipic)%q(i,j)*en_perts(n,ig,ibin)%r2(ipic)%qr4(i,j)
+                                 +work_ens%r2(ipic)%q(i,j)*en_perts(n,ig0+ig,ibin_in)%r2(ipic)%qr4(i,j)
                          enddo
                       enddo
 
@@ -2453,7 +2499,7 @@ end subroutine normal_new_factorization_rf_y
     use hybrid_ensemble_parameters, only: alphacvarsclgrpmat
     use hybrid_ensemble_parameters, only: nval_lenz_en
     use hybrid_ensemble_parameters, only: uv_hyb_ens,dual_res,nelen
-    use hybrid_ensemble_parameters, only: en_perts,en_etlm,ntlevs_etlm,infl_etlm
+    use hybrid_ensemble_parameters, only: en_perts,ntlevs_etlm,infl_etlm
     use gsi_bundlemod, only: gsi_bundlegetvar
     use gsi_bundlemod, only: gsi_bundleputvar
     implicit none
@@ -2462,7 +2508,8 @@ end subroutine normal_new_factorization_rf_y
     type(gsi_bundle),intent(inout) :: eval(ntlevs_etlm)
     integer(i_kind),intent(in) :: iflg
 
-    integer(i_kind) ii,n,istatus,k,ig,ig2
+    integer(i_kind) ii,n,istatus,k
+    integer(i_kind) ntotensgrp0,naensgrp0
     integer(i_kind) ipnts(4),is_u,is_v,is_tv,is_ps,ic_sf,ic_vp,ic_t,ic_ps
     real(r_kind),pointer,dimension(:,:,:) :: sv_u=>NULL()
     real(r_kind),pointer,dimension(:,:,:) :: sv_v=>NULL()
@@ -2476,10 +2523,7 @@ end subroutine normal_new_factorization_rf_y
     real(r_kind),pointer,dimension(:,:)   :: se_ps=>NULL()
     real(r_kind),pointer,dimension(:,:,:) :: ce_sf=>NULL()
     real(r_kind),pointer,dimension(:,:,:) :: ce_vp=>NULL()
-    real(r_kind),allocatable,dimension(:,:) :: z
-    real(r_kind),allocatable,dimension(:) :: ztmp
-    real(r_kind),allocatable,dimension(:,:,:) :: values
-    real(r_kind),allocatable,dimension(:):: sqrt_infl_etlm
+    real(r_kind),allocatable,dimension(:) :: z
     logical dobal
     type(control_vector) :: grade
 
@@ -2530,6 +2574,11 @@ end subroutine normal_new_factorization_rf_y
     call gsi_bundlegetpointer ( val, 'tv', sv_tv, istatus )
     call gsi_bundlegetpointer ( val, 'ps', sv_ps, istatus )
 
+    ntotensgrp0=ntotensgrp
+    naensgrp0=naensgrp
+    ntotensgrp=1
+    naensgrp=1
+
     if(iflg==0) then
        grade%step(1)%values=zero
        if(uv_hyb_ens) then
@@ -2546,35 +2595,18 @@ end subroutine normal_new_factorization_rf_y
        call gsi_bundleputvar ( val, 'v', zero, istatus )
        call gsi_bundleputvar ( val, 'tv', zero, istatus )
        call gsi_bundleputvar ( val, 'ps', zero, istatus )
-       allocate(values(n_ens,ntotensgrp,nelen))
-       do ig=1,ntotensgrp
-          do n=1,n_ens
-             values(n,ig,:)=en_perts(n,ig,1)%valuesr4(:)
-             en_perts(n,ig,1)%valuesr4=en_perts(n,ig,1)%valuesr4*en_etlm(ig)%valuesr4
-          end do
-       end do
-       do ig=1,naensgrp
-          do n=1,n_ens
-             grade%aens(1,ig,n)%values=zero
-          end do
+       do n=1,n_ens
+          grade%aens(1,1,n)%values=zero
        end do
        if(dual_res) then
-          call ensemble_forward_model_ad_dual_res(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),1)
+          call ensemble_forward_model_ad_dual_res(grade%step(1),grade%aens(1,1,1:n_ens),0,naensgrp0)
        else
-          call ensemble_forward_model_ad(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),1)
+          call ensemble_forward_model_ad(grade%step(1),grade%aens(1,1,1:n_ens),0,naensgrp0)
        end if
        grade%step(1)%values=zero
-       do ig=1,ntotensgrp
-          do n=1,n_ens
-             en_perts(n,ig,1)%valuesr4(:)=values(n,ig,:)
-          end do
-       end do
-       deallocate(values)
     elseif(iflg==1) then
-       do ig=1,naensgrp
-          do n=1,n_ens
-             grade%aens(1,ig,n)%values=zero
-          end do
+       do n=1,n_ens
+          grade%aens(1,1,n)%values=zero
        end do
        val%values=zero
        do ii=1,ntlevs_etlm
@@ -2598,9 +2630,9 @@ end subroutine normal_new_factorization_rf_y
           call gsi_bundleputvar ( eval(ii), 'tv', zero, istatus )
           call gsi_bundleputvar ( eval(ii), 'ps', zero, istatus )
           if(dual_res) then
-             call ensemble_forward_model_ad_dual_res(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),ii)
+             call ensemble_forward_model_ad_dual_res(grade%step(1),grade%aens(1,1,1:n_ens),ii,naensgrp0)
           else
-             call ensemble_forward_model_ad(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),ii)
+             call ensemble_forward_model_ad(grade%step(1),grade%aens(1,1,1:n_ens),ii,naensgrp0)
           end if
           grade%step(1)%values=zero
           val%values=val%values+eval(ii)%values
@@ -2608,43 +2640,19 @@ end subroutine normal_new_factorization_rf_y
        end do
     end if
 
-    allocate(z(naensgrp,nval_lenz_en))
+    allocate(z(nval_lenz_en))
     if(iflg==0) then
-       do ig=1,naensgrp
-          call ckgcov_a_en_new_factorization_ad(0,z(ig,:),grade%aens(1,ig,1:n_ens))
-       enddo
+       call ckgcov_a_en_new_factorization_ad(0,z(:),grade%aens(1,1,1:n_ens))
     elseif(iflg==1) then
-       do ig=1,naensgrp
-          call ckgcov_a_en_new_factorization_ad(ig,z(ig,:),grade%aens(1,ig,1:n_ens))
-       enddo
+       call ckgcov_a_en_new_factorization_ad(naensgrp0+1,z(:),grade%aens(1,1,1:n_ens))
     end if
-    allocate(ztmp(naensgrp))
-    allocate(sqrt_infl_etlm(naensgrp))
-    sqrt_infl_etlm = sqrt(infl_etlm(1:naensgrp))
     do k=1,nval_lenz_en
-       do ig=1,naensgrp
-          z(ig,k) = z(ig,k) * sqrt_infl_etlm(ig)
-       enddo
-       ztmp=zero
-       do ig=1,naensgrp
-          do ig2=1,naensgrp
-             ztmp(ig) = ztmp(ig) + z(ig2,k) * alphacvarsclgrpmat(ig,ig2)
-          enddo
-       enddo
-       do ig=1,naensgrp
-          z(ig,k) = ztmp(ig) * sqrt_infl_etlm(ig)
-       enddo
+       z(k) = z(k) * infl_etlm
     enddo
-    deallocate(ztmp)
-    deallocate(sqrt_infl_etlm)
     if(iflg==0) then
-       do ig=1,naensgrp
-          call ckgcov_a_en_new_factorization(ig,z(ig,:),grade%aens(1,ig,1:n_ens))
-       enddo
+       call ckgcov_a_en_new_factorization(naensgrp0+1,z(:),grade%aens(1,1,1:n_ens))
     elseif(iflg==1) then
-       do ig=1,naensgrp
-          call ckgcov_a_en_new_factorization(0,z(ig,:),grade%aens(1,ig,1:n_ens))
-       enddo
+       call ckgcov_a_en_new_factorization(0,z(:),grade%aens(1,1,1:n_ens))
     end if
     deallocate(z)
 
@@ -2658,9 +2666,9 @@ end subroutine normal_new_factorization_rf_y
           call gsi_bundlegetpointer ( eval(ii), 'tv', se_tv, istatus )
           call gsi_bundlegetpointer ( eval(ii), 'ps', se_ps, istatus )
           if(dual_res) then
-             call ensemble_forward_model_dual_res(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),ii)
+             call ensemble_forward_model_dual_res(grade%step(1),grade%aens(1,1,1:n_ens),ii,naensgrp0)
           else
-             call ensemble_forward_model(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),ii)
+             call ensemble_forward_model(grade%step(1),grade%aens(1,1,1:n_ens),ii,naensgrp0)
           end if
           call gsi_bundleputvar ( eval(ii), 'u', zero, istatus )
           call gsi_bundleputvar ( eval(ii), 'v', zero, istatus )
@@ -2679,36 +2687,19 @@ end subroutine normal_new_factorization_rf_y
           grade%step(1)%values=zero
        end do
        val%values=zero
-       do ig=1,naensgrp
-          do n=1,n_ens
-             grade%aens(1,ig,n)%values=zero
-          end do
+       do n=1,n_ens
+          grade%aens(1,1,n)%values=zero
        end do
     elseif(iflg==1) then
-       allocate(values(n_ens,ntotensgrp,nelen))
-       do ig=1,ntotensgrp
-          do n=1,n_ens
-             values(n,ig,:)=en_perts(n,ig,1)%valuesr4(:)
-             en_perts(n,ig,1)%valuesr4=en_perts(n,ig,1)%valuesr4*en_etlm(ig)%valuesr4
-          end do
-       end do
        grade%step(1)%values=zero
        if(dual_res) then
-          call ensemble_forward_model_dual_res(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),1)
+          call ensemble_forward_model_dual_res(grade%step(1),grade%aens(1,1,1:n_ens),0,naensgrp0)
        else
-          call ensemble_forward_model(grade%step(1),grade%aens(1,1:naensgrp,1:n_ens),1)
+          call ensemble_forward_model(grade%step(1),grade%aens(1,1,1:n_ens),0,naensgrp0)
        end if
-       do ig=1,naensgrp
-          do n=1,n_ens
-             grade%aens(1,ig,n)%values=zero
-          end do
+       do n=1,n_ens
+          grade%aens(1,1,n)%values=zero
        end do
-       do ig=1,ntotensgrp
-          do n=1,n_ens
-             en_perts(n,ig,1)%valuesr4(:)=values(n,ig,:)
-          end do
-       end do
-       deallocate(values)
        call gsi_bundleputvar ( val, 'u', zero, istatus )
        call gsi_bundleputvar ( val, 'v', zero, istatus )
        call gsi_bundleputvar ( val, 'tv', zero, istatus )
@@ -2725,6 +2716,9 @@ end subroutine normal_new_factorization_rf_y
        call gsi_bundlegetvar ( grade%step(1), 'ps', sv_ps, istatus )
        grade%step(1)%values=zero
     end if
+
+    ntotensgrp=ntotensgrp0
+    naensgrp=naensgrp0
 
     call deallocate_cv(grade)
     return
@@ -4650,6 +4644,129 @@ subroutine hybens_localization_setup
       endif
       if(nsclgrp>1.or.l_etlm) call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
    endif
+   if(l_etlm) then
+      allocate(values(grd_ens%latlon11*grd_ens%nsig*n_ens))
+      ii=0
+      do n=1,n_ens
+         a_en(n)%values => values(ii+1:ii+grd_ens%latlon11*grd_ens%nsig)
+         call gsi_bundleset(a_en(n),grid_ens,'Ensemble Bundle',istatus,names3d=(/'a_en'/),bundle_kind=r_kind)
+         if (istatus/=0) then
+            write(6,*) myname_,': error alloc(ensemble bundle)'
+            call stop2(999)
+         endif
+         ii=ii+grd_ens%latlon11*grd_ens%nsig
+      enddo
+      do m=1,ntlevs_ens
+         do n=1,n_ens
+            en_perts(n,naensgrp+1,m)%valuesr4=en_perts(n,1,m)%valuesr4
+         enddo
+         do ic3=1,nc3d
+            ipic=ipc3d(ic3)
+            do n=1,n_ens
+               do k=1,grd_ens%nsig
+                  a_en(n)%r3(1)%q(:,:,k)=en_perts(n,naensgrp+1,m)%r3(ipic)%qr4(:,:,k)
+               enddo
+            enddo
+            call bkgcov_a_en_new_factorization(naensloc,a_en)
+            do n=1,n_ens
+               do k=1,grd_ens%nsig
+                  en_perts(n,naensgrp+1,m)%r3(ipic)%qr4(:,:,k)=a_en(n)%r3(1)%q(:,:,k)
+               enddo
+            enddo
+         enddo
+         do ic2=1,nc2d
+            ipic=ipc2d(ic2)
+            do n=1,n_ens
+               do k=1,grd_ens%nsig
+                  a_en(n)%r3(1)%q(:,:,k)=en_perts(n,naensgrp+1,m)%r2(ipic)%qr4(:,:)
+               enddo
+            enddo
+            call bkgcov_a_en_new_factorization(naensloc,a_en)
+            do n=1,n_ens
+               en_perts(n,naensgrp+1,m)%r2(ipic)%qr4(:,:)=a_en(n)%r3(1)%q(:,:,1)
+            enddo
+         enddo
+      enddo
+      do n=1,n_ens
+         call gsi_bundleunset(a_en(n),istatus)
+      enddo
+      deallocate(values)
+      call gsi_bundlecreate(en_etlm,grid_ens,'ensemble etlm',istatus, &
+                            names2d=cvars2d,names3d=cvars3d,bundle_kind=r_single)
+      if(istatus/=0) then
+         write(6,*)trim(myname_),': trouble creating en_etlm bundle'
+         call stop2(999)
+      endif
+      allocate(sumloc(grd_ens%nsig*nc3d+nc2d))
+      allocate(sumall(grd_ens%nsig*nc3d+nc2d,npe))
+      ii=0
+      do ic3=1,nc3d
+         ipic=ipc3d(ic3)
+         do k=1,grd_ens%nsig
+            ii=ii+1
+            do n=1,n_ens
+               en_etlm%r3(ipic)%qr4(:,:,k)=en_etlm%r3(ipic)%qr4(:,:,k)+en_perts(n,naensgrp+1,1)%r3(ipic)%qr4(:,:,k)**2
+            enddo
+            sumloc(ii)=gsi_bundlesum(en_etlm%r3(ipic)%qr4(:,:,k),ihalo=1)
+         enddo
+      enddo
+      do ic2=1,nc2d
+         ipic=ipc2d(ic2)
+         ii=ii+1
+         do n=1,n_ens
+            en_etlm%r2(ipic)%qr4(:,:)=en_etlm%r2(ipic)%qr4(:,:)+en_perts(n,naensgrp+1,1)%r2(ipic)%qr4(:,:)**2
+         enddo
+         sumloc(ii)=gsi_bundlesum(en_etlm%r2(ipic)%qr4(:,:),ihalo=1)
+      enddo
+      numloc=real((grd_ens%lat2-2)*(grd_ens%lon2-2),r_kind)
+      call mpi_allgather(sumloc,grd_ens%nsig*nc3d+nc2d,mpi_rtype,&
+           &             sumall,grd_ens%nsig*nc3d+nc2d,mpi_rtype,mpi_comm_world,istatus)
+      call mpi_allgather(numloc,1,mpi_rtype,&
+           &             numall,1,mpi_rtype,mpi_comm_world,istatus)
+      numloc=sum(numall(:))
+      ii=0
+      do ic3=1,nc3d
+         ipic=ipc3d(ic3)
+         do k=1,grd_ens%nsig
+            ii=ii+1
+            sumloc(ii)=sum(sumall(ii,:))
+            sprd_min=sumloc(ii)/numloc/r100
+            do j=1,grd_ens%lon2
+               do i=1,grd_ens%lat2
+                  if(en_etlm%r3(ipic)%qr4(i,j,k)<epsilon(one)) then
+                     en_etlm%r3(ipic)%qr4(i,j,k)=zero
+                  elseif(en_etlm%r3(ipic)%qr4(i,j,k)<sprd_min) then
+                     en_etlm%r3(ipic)%qr4(i,j,k)=one/sprd_min
+                  else
+                     en_etlm%r3(ipic)%qr4(i,j,k)=one/en_etlm%r3(ipic)%qr4(i,j,k)
+                  endif
+               enddo
+            enddo
+         enddo
+      enddo
+      do ic2=1,nc2d
+         ipic=ipc2d(ic2)
+         ii=ii+1
+         sumloc(ii)=sum(sumall(ii,:))
+         sprd_min=sumloc(ii)/numloc/r100
+         do j=1,grd_ens%lon2
+            do i=1,grd_ens%lat2
+               if(en_etlm%r2(ipic)%qr4(i,j)<epsilon(one)) then
+                  en_etlm%r2(ipic)%qr4(i,j)=zero
+               elseif(en_etlm%r2(ipic)%qr4(i,j)<sprd_min) then
+                  en_etlm%r2(ipic)%qr4(i,j)=one/sprd_min
+               else
+                  en_etlm%r2(ipic)%qr4(i,j)=one/en_etlm%r2(ipic)%qr4(i,j)
+               endif
+            enddo
+         enddo
+      enddo
+      deallocate(sumloc)
+      deallocate(sumall)
+      do n=1,n_ens
+         en_perts(n,naensgrp+1,0)%valuesr4=en_perts(n,naensgrp+1,1)%valuesr4*en_etlm%valuesr4
+      enddo
+   endif
    if(ntotensgrp>1) then
       if(nsclgrp>1) then
          allocate(values(grd_ens%latlon11*grd_ens%nsig*n_ens))
@@ -4710,85 +4827,6 @@ subroutine hybens_localization_setup
                en_perts(n,ig,m)%valuesr4=en_perts(n,ig-nsclgrp,m)%valuesr4
             enddo
          enddo
-      enddo
-   endif
-   if(l_etlm) then
-      allocate(en_etlm(ntotensgrp))
-      call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
-      do ig=1,ntotensgrp
-         call gsi_bundlecreate(en_etlm(ig),grid_ens,'ensemble etlm',istatus, &
-                               names2d=cvars2d,names3d=cvars3d,bundle_kind=r_single)
-         if(istatus/=0) then
-            write(6,*)trim(myname_),': trouble creating en_etlm bundle'
-            call stop2(999)
-         endif
-         en_etlm(ig)%valuesr4=zero
-         allocate(sumloc(grd_ens%nsig*nc3d+nc2d))
-         allocate(sumall(grd_ens%nsig*nc3d+nc2d,npe))
-         ii=0
-         do ic3=1,nc3d
-            ipic=ipc3d(ic3)
-            do k=1,grd_ens%nsig
-               ii=ii+1
-               do n=1,n_ens
-                  en_etlm(ig)%r3(ipic)%qr4(:,:,k)=en_etlm(ig)%r3(ipic)%qr4(:,:,k)+en_perts(n,ig,1)%r3(ipic)%qr4(:,:,k)**2
-               enddo
-               sumloc(ii)=gsi_bundlesum(en_etlm(ig)%r3(ipic)%qr4(:,:,k),ihalo=1)
-            enddo
-         enddo
-         do ic2=1,nc2d
-            ipic=ipc2d(ic2)
-            ii=ii+1
-            do n=1,n_ens
-               en_etlm(ig)%r2(ipic)%qr4(:,:)=en_etlm(ig)%r2(ipic)%qr4(:,:)+en_perts(n,ig,1)%r2(ipic)%qr4(:,:)**2
-            enddo
-            sumloc(ii)=gsi_bundlesum(en_etlm(ig)%r2(ipic)%qr4(:,:),ihalo=1)
-         enddo
-         numloc=real((grd_ens%lat2-2)*(grd_ens%lon2-2),r_kind)
-         call mpi_allgather(sumloc,grd_ens%nsig*nc3d+nc2d,mpi_rtype,&
-              &             sumall,grd_ens%nsig*nc3d+nc2d,mpi_rtype,mpi_comm_world,istatus)
-         call mpi_allgather(numloc,1,mpi_rtype,&
-              &             numall,1,mpi_rtype,mpi_comm_world,istatus)
-         numloc=sum(numall(:))
-         ii=0
-         do ic3=1,nc3d
-            ipic=ipc3d(ic3)
-            do k=1,grd_ens%nsig
-               ii=ii+1
-               sumloc(ii)=sum(sumall(ii,:))
-               sprd_min=sumloc(ii)/numloc/r100
-               do j=1,grd_ens%lon2
-                  do i=1,grd_ens%lat2
-                     if(en_etlm(ig)%r3(ipic)%qr4(i,j,k)<epsilon(one)) then
-                        en_etlm(ig)%r3(ipic)%qr4(i,j,k)=zero
-                     elseif(en_etlm(ig)%r3(ipic)%qr4(i,j,k)<sprd_min) then
-                        en_etlm(ig)%r3(ipic)%qr4(i,j,k)=one/sprd_min
-                     else
-                        en_etlm(ig)%r3(ipic)%qr4(i,j,k)=one/en_etlm(ig)%r3(ipic)%qr4(i,j,k)
-                     endif
-                  enddo
-               enddo
-            enddo
-         enddo
-         do ic2=1,nc2d
-            ipic=ipc2d(ic2)
-            ii=ii+1
-            sumloc(ii)=sum(sumall(ii,:))
-            sprd_min=sumloc(ii)/numloc/r100
-            do j=1,grd_ens%lon2
-               do i=1,grd_ens%lat2
-                  if(en_etlm(ig)%r2(ipic)%qr4(i,j)<epsilon(one)) then
-                     en_etlm(ig)%r2(ipic)%qr4(i,j)=zero
-                  elseif(en_etlm(ig)%r2(ipic)%qr4(i,j)<sprd_min) then
-                     en_etlm(ig)%r2(ipic)%qr4(i,j)=one/sprd_min
-                  else
-                     en_etlm(ig)%r2(ipic)%qr4(i,j)=one/en_etlm(ig)%r2(ipic)%qr4(i,j)
-                  endif
-               enddo
-            enddo
-         enddo
-         deallocate(sumloc)
-         deallocate(sumall)
       enddo
    endif
 

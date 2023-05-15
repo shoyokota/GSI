@@ -357,7 +357,7 @@ module hybrid_ensemble_parameters
   integer(i_kind),parameter::max_nvars=100
   real(r_kind) s_ens_h(max_naensloc)
   real(r_kind) s_ens_v(max_naensloc)
-  real(r_kind) infl_etlm(max_naensloc)
+  real(r_kind) infl_etlm
   type(sub2grid_info),save :: grd_ens,grd_loc,grd_sploc,grd_anl,grd_e1,grd_a1
   type(spec_vars),save :: sp_ens,sp_loc
   type(egrid2agrid_parm),save :: p_e2a,p_sploc2ens
@@ -398,7 +398,7 @@ module hybrid_ensemble_parameters
 
   integer(i_kind) nelen
   type(gsi_bundle),save,allocatable :: en_perts(:,:,:)
-  type(gsi_bundle),save,allocatable :: en_etlm(:)
+  type(gsi_bundle),save :: en_etlm
   real(r_single),dimension(:,:,:),allocatable:: ps_bar
 
 !    following is for interpolation of global ensemble to regional ensemble grid
