@@ -151,7 +151,7 @@
                          readin_beta,use_localization_grid,use_gfs_ens,q_hyb_ens,i_en_perts_io, &
                          l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB, &
                          ntotensgrp,nsclgrp,naensgrp,ngvarloc,ntlevs_ens,naensloc, &
-                         r_ensloccov4tim,r_ensloccov4var,r_ensloccov4scl,l_timloc_opt
+                         r_ensloccov4tim,r_ensloccov4var,r_ensloccov4scl,l_timloc_opt,l_mgbf_loc_h
   use hybrid_ensemble_parameters,only : l_both_fv3sar_gfs_ens,n_ens_gfs,n_ens_fv3sar,weight_ens_gfs,weight_ens_fv3sar
   use rapidrefresh_cldsurf_mod, only: init_rapidrefresh_cldsurf, &
                             dfi_radar_latent_heat_time_period,metar_impact_radius,&
@@ -1357,6 +1357,7 @@
 !     r_ensloccov4tim - factor multiplying to cross-temporal localization
 !     r_ensloccov4var - factor multiplying to cross-variable localization
 !     r_ensloccov4scl - factor multiplying to cross-scale localization
+!     l_mgbf_loc_h - if true, multi-grid beta filter is used for horizontal localization instead of recursive filter
 !
   namelist/hybrid_ensemble/l_hyb_ens,uv_hyb_ens,q_hyb_ens,aniso_a_en,generate_ens,n_ens,&
                 l_both_fv3sar_gfs_ens,n_ens_gfs,n_ens_fv3sar,weight_ens_gfs,weight_ens_fv3sar,nlon_ens,nlat_ens,jcap_ens,&
@@ -1365,7 +1366,7 @@
                 grid_ratio_ens, &
                 oz_univ_static,write_ens_sprd,use_localization_grid,use_gfs_ens, &
                 i_en_perts_io,l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB, &
-                nsclgrp,l_timloc_opt,ngvarloc,naensloc,r_ensloccov4tim,r_ensloccov4var,r_ensloccov4scl
+                nsclgrp,l_timloc_opt,ngvarloc,naensloc,r_ensloccov4tim,r_ensloccov4var,r_ensloccov4scl,l_mgbf_loc_h
 
 ! rapidrefresh_cldsurf (options for cloud analysis and surface 
 !                             enhancement for RR appilcation  ):

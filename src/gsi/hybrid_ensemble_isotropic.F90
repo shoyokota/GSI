@@ -102,6 +102,9 @@ module hybrid_ensemble_isotropic
   use control_vectors, only: cvars2d,cvars3d,nc2d,nc3d
   use string_utility, only: StrUpCase
 
+! For MGBF
+  use mg_intstate
+
   implicit none
 
 ! set default to private
@@ -183,6 +186,9 @@ module hybrid_ensemble_isotropic
 
   logical,parameter:: debug=.false.
 
+! For MGBF
+  type (mg_intstate_type):: obj_mgbf
+  real(r_kind), allocatable, dimension(:,:,:) :: hwork_mgbf
 
 contains
 
@@ -3698,9 +3704,11 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
   use kinds, only: r_kind,i_kind
   use gridmod, only: regional
   use hybrid_ensemble_parameters, only: n_ens,grd_loc
+  use hybrid_ensemble_parameters, only: l_mgbf_loc_h
   use general_sub2grid_mod, only: general_sub2grid,general_grid2sub
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
+  use constants, only: zero
 
   implicit none
 
@@ -3710,7 +3718,7 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
   type(gsi_bundle),intent(inout) :: a_en(n_ens)
 
 ! Local Variables
-  integer(i_kind) ii,k,iflg,iadvance,iback,is,ie,ipnt,istatus
+  integer(i_kind) ii,i,j,k,iflg,iadvance,iback,is,ie,ipnt,istatus,im,jm,di,dj,kk
   real(r_kind) hwork(grd_loc%inner_vars,grd_loc%nlat,grd_loc%nlon,grd_loc%kbegin_loc:grd_loc%kend_alloc)
   real(r_kind),allocatable,dimension(:):: a_en_work
 
@@ -3740,23 +3748,59 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
      a_en_work(is:ie)=a_en(k)%values(1:a_en(k)%ndim)
   enddo
 
-! Convert from subdomain to full horizontal field distributed among processors
-  call general_sub2grid(grd_loc,a_en_work,hwork)
-
 ! Apply horizontal smoother for number of horizontal scales
   if(regional) then
-     iadvance=1 ; iback=2
-     call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
-     call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
-     iadvance=2 ; iback=1
-     call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
-     call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
-  else
-     call sf_xy(ig,hwork,grd_loc%kbegin_loc,grd_loc%kend_loc)
-  end if
-
+     if(l_mgbf_loc_h) then
+        di=max(grd_loc%lon2-obj_mgbf%nm,0)
+        dj=max(grd_loc%lat2-obj_mgbf%mm,0)
+        hwork_mgbf=zero
+        kk=0
+        do k=1,grd_loc%num_fields
+           do i=1,grd_loc%lon2
+              im=i-di/2
+              do j=1,grd_loc%lat2
+                 kk=kk+1
+                 jm=j-dj/2
+                 if(im<obj_mgbf%n0.or.im>obj_mgbf%nm.or.jm<obj_mgbf%m0.or.jm>obj_mgbf%mm) cycle
+                 hwork_mgbf(k,im,jm)=a_en_work(kk)
+              end do
+           end do
+        end do
+        call obj_mgbf%anal_to_filt_all(hwork_mgbf)
+        call obj_mgbf%mg_filtering_procedure(obj_mgbf%mgbf_proc)
+        call obj_mgbf%filt_to_anal_all(hwork_mgbf)
+        a_en_work=zero
+        kk=0
+        do k=1,grd_loc%num_fields
+           do i=1,grd_loc%lon2
+              im=i-di/2
+              do j=1,grd_loc%lat2
+                 kk=kk+1
+                 jm=j-dj/2
+                 if(im<obj_mgbf%n0.or.im>obj_mgbf%nm.or.jm<obj_mgbf%m0.or.jm>obj_mgbf%mm) cycle
+                 a_en_work(kk)=hwork_mgbf(k,im,jm)
+              end do
+           end do
+        end do
+     else
+! Convert from subdomain to full horizontal field distributed among processors
+        call general_sub2grid(grd_loc,a_en_work,hwork)
+        iadvance=1 ; iback=2
+        call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
+        call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
+        iadvance=2 ; iback=1
+        call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
+        call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
 ! Put back onto subdomains
-  call general_grid2sub(grd_loc,hwork,a_en_work)
+        call general_grid2sub(grd_loc,hwork,a_en_work)
+     endif
+  else
+! Convert from subdomain to full horizontal field distributed among processors
+     call general_sub2grid(grd_loc,a_en_work,hwork)
+     call sf_xy(ig,hwork,grd_loc%kbegin_loc,grd_loc%kend_loc)
+! Put back onto subdomains
+     call general_grid2sub(grd_loc,hwork,a_en_work)
+  end if
 
 ! Retrieve ensemble components from long vector
 ! Apply vertical smoother on each ensemble member
@@ -3802,6 +3846,7 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
   use gridmod, only: regional
   use hybrid_ensemble_parameters, only: n_ens,grd_loc
   use hybrid_ensemble_parameters, only: nval_lenz_en
+  use hybrid_ensemble_parameters, only: l_mgbf_loc_h
   use general_sub2grid_mod, only: general_grid2sub
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -3814,7 +3859,7 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
   real(r_kind),dimension(nval_lenz_en),intent(in   ) :: z
 
 ! Local Variables
-  integer(i_kind) ii,k,iadvance,iback,is,ie,ipnt,istatus
+  integer(i_kind) ii,i,j,k,iadvance,iback,is,ie,ipnt,istatus,im,jm,di,dj,kk
   real(r_kind) hwork(grd_loc%nlat*grd_loc%nlon*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1))
 !NOTE:   nval_lenz_en = nhoriz*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1)
 !      and nhoriz = grd_loc%nlat*grd_loc%nlon for regional,
@@ -3830,6 +3875,11 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
      call stop2(999)
   endif
 
+  allocate(a_en_work(n_ens*a_en(1)%ndim),stat=istatus)
+  if(istatus/=0) then
+     write(6,*)'ckgcov_a_en_new_factorization: trouble in alloc(a_en_work)'
+     call stop2(999)
+  endif
 
   if(grd_loc%kend_loc+1-grd_loc%kbegin_loc==0) then
 !     no work to be done on this processor, but hwork still has allocated space, since
@@ -3838,27 +3888,75 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
   else
 ! Apply horizontal smoother for number of horizontal scales
      if(regional) then
+        if(l_mgbf_loc_h) then
+           di=max(grd_loc%lon2-obj_mgbf%nm,0)
+           dj=max(grd_loc%lat2-obj_mgbf%mm,0)
+           kk=0
+           do j=obj_mgbf%j0-obj_mgbf%hy,obj_mgbf%jm+obj_mgbf%hy
+              do i=obj_mgbf%i0-obj_mgbf%hx,obj_mgbf%im+obj_mgbf%hx
+                 do k=1,obj_mgbf%km
+                    kk=kk+1
+                    obj_mgbf%VALL(k,i,j)=z(kk)
+                 enddo
+              enddo
+           enddo
+           do j=obj_mgbf%j0-obj_mgbf%hy,obj_mgbf%jm+obj_mgbf%hy
+              do i=obj_mgbf%i0-obj_mgbf%hx,obj_mgbf%im+obj_mgbf%hx
+                 do k=1,obj_mgbf%km
+                    kk=kk+1
+                    obj_mgbf%HALL(k,i,j)=z(kk)
+                 enddo
+              enddo
+           enddo
+           call obj_mgbf%weighting_all(obj_mgbf%VALL,obj_mgbf%HALL,obj_mgbf%lhelm)
+           call obj_mgbf%boco_2d(obj_mgbf%VALL,obj_mgbf%km,&
+                & obj_mgbf%im,obj_mgbf%jm,obj_mgbf%hx,obj_mgbf%hy)
+           call obj_mgbf%boco_2d(obj_mgbf%HALL,obj_mgbf%km,&
+                & obj_mgbf%im,obj_mgbf%jm,obj_mgbf%hx,obj_mgbf%hy,&
+                & obj_mgbf%Fimax,obj_mgbf%Fjmax,2,obj_mgbf%gm)
+           call obj_mgbf%rbeta(obj_mgbf%km,&
+                & obj_mgbf%hx,obj_mgbf%i0,obj_mgbf%im,&
+                & obj_mgbf%hy,obj_mgbf%j0,obj_mgbf%jm,&
+                & obj_mgbf%pasp2,obj_mgbf%ss2,obj_mgbf%VALL(:,:,:))
+           if(obj_mgbf%l_hgen) call obj_mgbf%rbeta(obj_mgbf%km,&
+                & obj_mgbf%hx,obj_mgbf%i0,obj_mgbf%im,&
+                & obj_mgbf%hy,obj_mgbf%j0,obj_mgbf%jm,&
+                & obj_mgbf%pasp2,obj_mgbf%ss2,obj_mgbf%HALL(:,:,:))
+           call obj_mgbf%downsending_all(obj_mgbf%HALL,obj_mgbf%VALL,obj_mgbf%lquart)
+           call obj_mgbf%filt_to_anal_all(hwork_mgbf)
+           a_en_work=zero
+           kk=0
+           do k=1,grd_loc%num_fields
+              do i=1,grd_loc%lon2
+                 im=i-di/2
+                 do j=1,grd_loc%lat2
+                    kk=kk+1
+                    jm=j-dj/2
+                    if(im<obj_mgbf%n0.or.im>obj_mgbf%nm.or.jm<obj_mgbf%m0.or.jm>obj_mgbf%mm) cycle
+                    a_en_work(kk)=hwork_mgbf(k,im,jm)
+                 end do
+              end do
+           end do
+           hwork_mgbf=zero
+        else
 ! Make a copy of input variable z to hwork
-        hwork=z
-        iadvance=2 ; iback=1
-        call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
-        call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
+           hwork=z
+           iadvance=2 ; iback=1
+           call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
+           call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
+! Put back onto subdomains
+           call general_grid2sub(grd_loc,hwork,a_en_work)
+        endif
      else
 #ifdef LATER
         call sqrt_sf_xy(ig,z,hwork,grd_loc%kbegin_loc,grd_loc%kend_loc)
 #else
         write(6,*) ' problem with ibm compiler with "use hybrid_ensemble_isotropic, only: sqrt_sf_xy"'
 #endif /*LATER*/
+! Put back onto subdomains
+        call general_grid2sub(grd_loc,hwork,a_en_work)
      end if
   end if
-
-! Put back onto subdomains
-  allocate(a_en_work(n_ens*a_en(1)%ndim),stat=istatus)
-  if(istatus/=0) then
-     write(6,*)'ckgcov_a_en_new_factorization: trouble in alloc(a_en_work)'
-     call stop2(999)
-  endif
-  call general_grid2sub(grd_loc,hwork,a_en_work)
 
 ! Retrieve ensemble components from long vector
   ii=0
@@ -3914,6 +4012,7 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
   use gridmod, only: regional
   use hybrid_ensemble_parameters, only: n_ens,grd_loc
   use hybrid_ensemble_parameters, only: nval_lenz_en
+  use hybrid_ensemble_parameters, only: l_mgbf_loc_h
   use general_sub2grid_mod, only: general_sub2grid
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -3926,7 +4025,7 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
   real(r_kind),dimension(nval_lenz_en),intent(inout) :: z
 
 ! Local Variables
-  integer(i_kind) ii,k,iadvance,iback,is,ie,ipnt,istatus
+  integer(i_kind) ii,i,j,k,iadvance,iback,is,ie,ipnt,istatus,im,jm,di,dj,kk
   real(r_kind) hwork(grd_loc%nlat*grd_loc%nlon*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1))
 !NOTE:   nval_lenz_en = nhoriz*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1)
 !      and nhoriz = grd_loc%nlat*grd_loc%nlon for regional,
@@ -3965,10 +4064,6 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
      ii=ii+a_en(1)%ndim
   enddo
 
-! Convert from subdomain to full horizontal field distributed among processors
-  call general_sub2grid(grd_loc,a_en_work,hwork)
-  deallocate(a_en_work)
-
   if(grd_loc%kend_loc+1-grd_loc%kbegin_loc==0) then
 !     no work to be done on this processor, but z still has allocated space, since
 !                     grd_loc%kend_alloc = grd_loc%kbegin_loc in this case, so set to zero.
@@ -3976,14 +4071,72 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
   else
 ! Apply horizontal smoother for number of horizontal scales
      if(regional) then
-        iadvance=1 ; iback=2
-        call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
-        call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
+        if(l_mgbf_loc_h) then
+           di=max(grd_loc%lon2-obj_mgbf%nm,0)
+           dj=max(grd_loc%lat2-obj_mgbf%mm,0)
+           hwork_mgbf=zero
+           kk=0
+           do k=1,grd_loc%num_fields
+              do i=1,grd_loc%lon2
+                 im=i-di/2
+                 do j=1,grd_loc%lat2
+                    kk=kk+1
+                    jm=j-dj/2
+                    if(im<obj_mgbf%n0.or.im>obj_mgbf%nm.or.jm<obj_mgbf%m0.or.jm>obj_mgbf%mm) cycle
+                    hwork_mgbf(k,im,jm)=a_en_work(kk)
+                 end do
+              end do
+           end do
+           a_en_work=zero
+           call obj_mgbf%anal_to_filt_all(hwork_mgbf)
+           call obj_mgbf%upsending_all(obj_mgbf%VALL,obj_mgbf%HALL,obj_mgbf%lquart)
+           call obj_mgbf%rbetaT(obj_mgbf%km,&
+                & obj_mgbf%hx,obj_mgbf%i0,obj_mgbf%im,&
+                & obj_mgbf%hy,obj_mgbf%j0,obj_mgbf%jm,&
+                & obj_mgbf%pasp2,obj_mgbf%ss2,obj_mgbf%VALL(:,:,:))
+           if(obj_mgbf%l_hgen) call obj_mgbf%rbetaT(obj_mgbf%km,&
+                & obj_mgbf%hx,obj_mgbf%i0,obj_mgbf%im,&
+                & obj_mgbf%hy,obj_mgbf%j0,obj_mgbf%jm,&
+                & obj_mgbf%pasp2,obj_mgbf%ss2,obj_mgbf%HALL(:,:,:))
+           call obj_mgbf%bocoT_2d(obj_mgbf%VALL,obj_mgbf%km,&
+                & obj_mgbf%im,obj_mgbf%jm,obj_mgbf%hx,obj_mgbf%hy)
+           call obj_mgbf%bocoT_2d(obj_mgbf%HALL,obj_mgbf%km,&
+                & obj_mgbf%im,obj_mgbf%jm,obj_mgbf%hx,obj_mgbf%hy,&
+                & obj_mgbf%Fimax,obj_mgbf%Fjmax,2,obj_mgbf%gm)
+           call obj_mgbf%weighting_all(obj_mgbf%VALL,obj_mgbf%HALL,obj_mgbf%lhelm)
+           kk=0
+           do j=obj_mgbf%j0-obj_mgbf%hy,obj_mgbf%jm+obj_mgbf%hy
+              do i=obj_mgbf%i0-obj_mgbf%hx,obj_mgbf%im+obj_mgbf%hx
+                 do k=1,obj_mgbf%km
+                    kk=kk+1
+                    z(kk)=obj_mgbf%VALL(k,i,j)
+                 enddo
+              enddo
+           enddo
+           do j=obj_mgbf%j0-obj_mgbf%hy,obj_mgbf%jm+obj_mgbf%hy
+              do i=obj_mgbf%i0-obj_mgbf%hx,obj_mgbf%im+obj_mgbf%hx
+                 do k=1,obj_mgbf%km
+                    kk=kk+1
+                    z(kk)=obj_mgbf%HALL(k,i,j)
+                 enddo
+              enddo
+           enddo
+        else
+! Convert from subdomain to full horizontal field distributed among processors
+           call general_sub2grid(grd_loc,a_en_work,hwork)
+           iadvance=1 ; iback=2
+           call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
+           call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
+        endif
         z=hwork
      else
+! Convert from subdomain to full horizontal field distributed among processors
+        call general_sub2grid(grd_loc,a_en_work,hwork)
         call sqrt_sf_xy_ad(ig,z,hwork,grd_loc%kbegin_loc,grd_loc%kend_loc)
      end if
   end if
+
+  deallocate(a_en_work)
 
   return
 end subroutine ckgcov_a_en_new_factorization_ad
@@ -4170,6 +4323,7 @@ subroutine hybens_localization_setup
                                          vvlocal,s_ens_h,s_ens_hv,s_ens_v,s_ens_vv
    use hybrid_ensemble_parameters, only: ntotensgrp,naensgrp,naensloc,ntlevs_ens,nsclgrp
    use hybrid_ensemble_parameters, only: en_perts
+   use hybrid_ensemble_parameters, only: l_mgbf_loc_h
    use gsi_io, only: verbose
 
    implicit none
@@ -4290,24 +4444,30 @@ subroutine hybens_localization_setup
    call normal_new_factorization_rf_z
 
    if ( regional ) then ! convert s_ens_h from km to grid units.
-      if ( vvlocal ) then
-         call convert_km_to_grid_units(s_ens_h_gu_x(1:nz,:),s_ens_h_gu_y(1:nz,:),nz)
-         do n=2,n_ens
-            nk=(n-1)*nz
-            do k=1,nz
-               s_ens_h_gu_x(nk+k,:)=s_ens_h_gu_x(k,:)
-               s_ens_h_gu_y(nk+k,:)=s_ens_h_gu_y(k,:)
-            enddo
-         enddo
-         call init_rf_x(s_ens_h_gu_x(grd_loc%kbegin_loc:grd_loc%kend_alloc,:),kl)
-         call init_rf_y(s_ens_h_gu_y(grd_loc%kbegin_loc:grd_loc%kend_alloc,:),kl)
+      if ( l_mgbf_loc_h ) then
+         call obj_mgbf%mg_initialize("mgbf_loc.nml")
+         allocate(hwork_mgbf(obj_mgbf%km,obj_mgbf%n0:obj_mgbf%nm,obj_mgbf%m0:obj_mgbf%mm))
+         hwork_mgbf=zero
       else
-         call convert_km_to_grid_units(s_ens_h_gu_x,s_ens_h_gu_y,nz)
-         call init_rf_x(s_ens_h_gu_x,kl)
-         call init_rf_y(s_ens_h_gu_y,kl)
+         if ( vvlocal ) then
+            call convert_km_to_grid_units(s_ens_h_gu_x(1:nz,:),s_ens_h_gu_y(1:nz,:),nz)
+            do n=2,n_ens
+               nk=(n-1)*nz
+               do k=1,nz
+                  s_ens_h_gu_x(nk+k,:)=s_ens_h_gu_x(k,:)
+                  s_ens_h_gu_y(nk+k,:)=s_ens_h_gu_y(k,:)
+               enddo
+            enddo
+            call init_rf_x(s_ens_h_gu_x(grd_loc%kbegin_loc:grd_loc%kend_alloc,:),kl)
+            call init_rf_y(s_ens_h_gu_y(grd_loc%kbegin_loc:grd_loc%kend_alloc,:),kl)
+         else
+            call convert_km_to_grid_units(s_ens_h_gu_x,s_ens_h_gu_y,nz)
+            call init_rf_x(s_ens_h_gu_x,kl)
+            call init_rf_y(s_ens_h_gu_y,kl)
+         endif
+         call normal_new_factorization_rf_x
+         call normal_new_factorization_rf_y
       endif
-      call normal_new_factorization_rf_x
-      call normal_new_factorization_rf_y
    else
       call init_sf_xy(jcap_ens)
    endif
@@ -4397,7 +4557,11 @@ subroutine hybens_localization_setup
    ! but will need to rearrange so this can be set in control_vectors
    ! and triggered by lsqrtb.
    if ( regional ) then
-      nval_lenz_en = grd_loc%nlat*grd_loc%nlon*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1)
+      if ( l_mgbf_loc_h ) then
+         nval_lenz_en = obj_mgbf%km*((obj_mgbf%im-obj_mgbf%i0)*obj_mgbf%hx*2+1)*((obj_mgbf%jm-obj_mgbf%j0)*obj_mgbf%hy*2+1)*2
+      else
+         nval_lenz_en = grd_loc%nlat*grd_loc%nlon*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1)
+      endif
    else
       nval_lenz_en = sp_loc%nc*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1)
    endif
