@@ -208,32 +208,25 @@ end type  mg_parameter_type
 
 interface 
    module subroutine init_mg_MPI(this)
-   import :: mg_parameter_type
    class(mg_parameter_type),target :: this
    end subroutine init_mg_MPI
    module subroutine finishMPI(this)
-   import :: mg_parameter_type
    class(mg_parameter_type),target :: this
    end subroutine finishMPI
    module subroutine barrierMPI(this)
-   import :: mg_parameter_type
    class(mg_parameter_type),target :: this
    end subroutine barrierMPI
    module subroutine init_mg_domain(this) 
-     import mg_parameter_type
      class(mg_parameter_type)::this
    end subroutine init_mg_domain
    module subroutine init_domain(this) 
-     import mg_parameter_type
      class(mg_parameter_type),target::this
    end subroutine init_domain
    
      module    subroutine init_topology_2d(this)
-     import mg_parameter_type
         class(mg_parameter_type),target::this
     end subroutine init_topology_2d
     module     subroutine real_itarg (this,itarg)
-     import mg_parameter_type
         class(mg_parameter_type),target::this
         integer(i_kind), intent(inout):: itarg
     end     subroutine real_itarg                     

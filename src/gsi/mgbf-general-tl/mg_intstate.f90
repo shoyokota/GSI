@@ -151,12 +151,10 @@ contains
 end type mg_intstate_type
  interface 
  module subroutine  lsqr_mg_coef(this)
-   import mg_intstate_type
  class(mg_intstate_type),target::this
  end subroutine
  module subroutine lwq_vertical_coef  &
 (this,nm_in,im_in,c1,c2,c3,c4,iref_out)
-   import mg_intstate_type
 implicit none
  class(mg_intstate_type),target::this
 
@@ -167,7 +165,6 @@ integer(i_kind), dimension(1:nm_in), intent(out):: iref_out
 
  module subroutine  lwq_vertical_direct &
 (this,km_in,nm_in,imin,imax,jmin,jmax,c1,c2,c3,c4,kref,f,w)
-   import mg_intstate_type
 implicit none
 !-----------------------------------------------------------------------
 class(mg_intstate_type),target::this
@@ -179,7 +176,6 @@ real(r_kind), dimension(1:nm_in,imin:imax,jmin:jmax), intent(out):: w
  end subroutine
  module subroutine lwq_vertical_adjoint  &
 (this,nm_in,km_in,imin,imax,jmin,jmax,c1,c2,c3,c4,kref,w,f)
-   import mg_intstate_type
 implicit none
 !-----------------------------------------------------------------------
 class(mg_intstate_type),target::this
@@ -192,7 +188,6 @@ real(r_kind), dimension(1:km_in,imin:imax,jmin:jmax), intent(out):: f
 end interface 
 interface 
  module subroutine def_offset_coef(this)
-   import mg_intstate_type
  class(mg_intstate_type),target::this
  end subroutine
 end interface 
@@ -214,8 +209,6 @@ real(r_kind), dimension(km_in,1:this%nm,this%j0-this%jb:this%jm+this%jb):: VX
          module               subroutine lsqr_adjoint_offset                  &
 (this,W,V_out,km_in)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
-   import i_kind,r_kind
 implicit none
 class(mg_intstate_type),target::this
 integer(i_kind):: km_in
@@ -226,19 +219,16 @@ real(r_kind), dimension(km_in,1:this%nm,this%j0-this%jb:this%jm+this%jb):: VX
 !clt from mg_transfer.f90
 
  module  subroutine anal_to_filt_all(this,WORKA)
-   import mg_intstate_type
    class(mg_intstate_type),target::this
    real (r_kind):: WORKA(this%km,this%n0:this%nm,this%m0:this%mm)
 
   end subroutine anal_to_filt_all
   module subroutine filt_to_anal_all (this,WORKA)
-   import mg_intstate_type
     class(mg_intstate_type),target::this
    real (r_kind):: WORKA(this%km,this%n0:this%nm,this%m0:this%mm)
 
   end subroutine filt_to_anal_all 
   module subroutine stack_to_composite(this,ARR_ALL,A2D,A3D)
-   import mg_intstate_type
    class(mg_intstate_type),target::this
 real(r_kind),dimension(this%km ,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:this%jm+this%hy),   intent(in):: ARR_ALL
 real(r_kind),dimension(this%km3,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:this%jm+this%hy,this%lm),intent(out):: A3D
@@ -254,7 +244,6 @@ module  subroutine composite_to_stack                   &
 !***********************************************************************
 (this,A2D,A3D,ARR_ALL)
 !----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class(mg_intstate_type),target::this
 real(r_kind),dimension(this%km2,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:this%jm+this%hy),   intent(in):: A2D
@@ -316,7 +305,6 @@ integer(i_kind), dimension(this%gm), intent(in):: Fimax_in,Fjmax_in
               module          subroutine bocoT_2d_g1                          &
 (this,W,km_in,im_in,jm_in,nbx,nby)
 !-----------------------------------------------------------------------
- import mg_intstate_type
 implicit none
 class(mg_intstate_type),target::this
 !-----------------------------------------------------------------------
@@ -327,7 +315,6 @@ real(r_kind), dimension(km_in,1-nbx:im_in+nbx,1-nby:jm_in+nby),intent(inout):: W
 (this,W,km_in,im_in,jm_in,nbx,nby,Fimax_in,Fjmax_in,mygen_min,mygen_max)
 !-----------------------------------------------------------------------
 
- import mg_intstate_type
 implicit none
 class(mg_intstate_type),target::this
 
@@ -457,7 +444,6 @@ integer(i_kind), dimension(this%gm), intent(in):: Fimax_in,Fjmax_in
                    module     subroutine upsend_all_g1                        &
 (this,Harray,Warray,km_in)
 !-----------------------------------------------------------------------
- import mg_intstate_type
 implicit none
 class(mg_intstate_type),target::this
 
@@ -469,7 +455,6 @@ real(r_kind), dimension(km_in,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%h
                    end     subroutine upsend_all_g1                      
              module           subroutine upsend_all_gh                        &
 (this,Harray,Warray,km_in,mygen_dn,mygen_up)
- import mg_intstate_type
 implicit none
 class(mg_intstate_type),target::this
 
@@ -510,49 +495,40 @@ end interface
 !clt from mg_filtering
 interface    
   module subroutine mg_filtering_procedure (this,mg_filt)
-   import mg_intstate_type
     class(mg_intstate_type),target::this
      integer(i_kind),intent(in):: mg_filt
 
   end subroutine mg_filtering_procedure 
   module subroutine mg_filtering_rad1(this)
-   import mg_intstate_type
     class(mg_intstate_type),target::this
   end subroutine mg_filtering_rad1 
   module subroutine mg_filtering_rad2(this)
-   import mg_intstate_type
     class(mg_intstate_type),target::this
 
   end subroutine mg_filtering_rad2
   module subroutine mg_filtering_rad3(this)
-   import mg_intstate_type
     class(mg_intstate_type),target::this
 
   end subroutine mg_filtering_rad3
   module subroutine mg_filtering_lin1(this)
-   import mg_intstate_type
     class(mg_intstate_type),target::this
 
   end subroutine mg_filtering_lin1
 module subroutine mg_filtering_lin2(this)
-   import mg_intstate_type
     class(mg_intstate_type),target::this
 
   end subroutine mg_filtering_lin2
 module subroutine mg_filtering_lin3(this)
-   import mg_intstate_type
     class(mg_intstate_type),target::this
 
   end subroutine mg_filtering_lin3
 module   subroutine mg_filtering_fast(this)
-   import mg_intstate_type
     class(mg_intstate_type),target::this
 
   end subroutine mg_filtering_fast
 module   subroutine sup_vrbeta1  & 
  (this,kmax,hx,hy,hz,im,jm,lm, pasp,ss, V)
 !----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
         class(mg_intstate_type),target::this
 
@@ -564,7 +540,6 @@ real(r_kind),dimension(1:lm), intent(in):: ss
   end subroutine sup_vrbeta1
 module   subroutine sup_vrbeta1T                        &
 (this,kmax,hx,hy,hz,im,jm,lm,  pasp,ss, V) 
-   import mg_intstate_type
     class(mg_intstate_type),target::this
   integer(i_kind),intent(in):: kmax,hx,hy,hz,im,jm,lm
 real(r_kind),dimension(1:kmax,this%i0-hx:im+hx,this%j0-hy:jm+hy,1:lm),intent(inout):: V
@@ -575,7 +550,6 @@ real(r_kind),dimension(1:lm), intent(in):: ss
   end subroutine sup_vrbeta1T
  module  subroutine sup_vrbeta3                        &
   (this,kmax,hx,hy,hz,im,jm,lm, pasp,ss, V)
-   import mg_intstate_type
     class(mg_intstate_type),target::this
     integer(i_kind),intent(in):: kmax,hx,hy,hz,im,jm,lm
 real(r_kind),dimension(1:kmax,this%i0-hx:im+hx,this%j0-hy:jm+hy,1:lm),intent(inout):: V
@@ -592,7 +566,6 @@ real(r_kind),dimension(this%i0:im,this%j0:jm,1:lm), intent(in):: ss
 !**********************************************************************
 (this,kmax,hx,hy,hz,im,jm,lm, pasp,ss,V)
 !----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
         class(mg_intstate_type),target::this
 
@@ -614,7 +587,6 @@ real(r_kind),dimension(this%i0:im,this%j0:jm,1:lm), intent(in):: ss
 !***********************************************************************
 (this,V,H,lquart)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 class (mg_intstate_type),target:: this
 real(r_kind),dimension(this%km,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(in):: V
 real(r_kind),dimension(this%km,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(out):: H
@@ -632,7 +604,6 @@ end subroutine upsending_all
 !***********************************************************************
 (this,H,V,lquart)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 
@@ -648,7 +619,6 @@ end subroutine downsending_all
 !***********************************************************************
 (this,V,H,lhelm)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 
@@ -666,7 +636,6 @@ end subroutine  weighting_all
 !***********************************************************************
 (this,V,H)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 
@@ -686,7 +655,6 @@ end subroutine upsending
 !***********************************************************************
 (this,H,V)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 
@@ -704,7 +672,6 @@ end subroutine downsending
 !***********************************************************************
 (this,V,H)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 
@@ -722,7 +689,6 @@ end subroutine upsending2
 !***********************************************************************
 (this,H,V)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 
@@ -737,7 +703,6 @@ module  subroutine weighting_helm                       &
 !***********************************************************************
 (this,V,H)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 
@@ -755,7 +720,6 @@ end subroutine weighting_helm
 !***********************************************************************
 (this,V,H)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 
@@ -773,7 +737,6 @@ module subroutine adjoint                              &
 !***********************************************************************
 (this,F,W,km_in,g)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 integer(i_kind),intent(in):: g
@@ -792,7 +755,6 @@ module subroutine direct1                              &
 !***********************************************************************
 (this,W,F,km_in,g)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 integer(i_kind),intent(in):: g
@@ -810,7 +772,6 @@ module subroutine adjoint2                             &
 !***********************************************************************
 (this,F,W,km_in,g)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 integer(i_kind),intent(in):: g
@@ -829,7 +790,6 @@ end subroutine adjoint2
 !***********************************************************************
 (this,W,F,km_in,g)
 !-----------------------------------------------------------------------
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type),target:: this
 integer(i_kind),intent(in):: g
@@ -839,14 +799,11 @@ real(r_kind), dimension(km_in,1:this%im,1:this%jm), intent(out):: F
 end subroutine direct2
   
                module         subroutine mg_initialize(this,inputfilename,obj_parameter)
-   import mg_intstate_type
-   import mg_parameter_type
 class (mg_intstate_type):: this
 character*(*),optional,intent(in) :: inputfilename
 class(mg_parameter_type),optional,intent(in)::obj_parameter
    end subroutine mg_initialize
   module      subroutine mg_finalize(this)
-   import mg_intstate_type
 implicit none
 class (mg_intstate_type)::this
         end subroutine mg_finalize
@@ -868,7 +825,6 @@ class (mg_intstate_type)::this
 ! Allocate internal state variables                                    !
 !                                                                      !
 !***********************************************************************
-   import mg_intstate_type
 implicit none
 class(mg_intstate_type),target::this
 
@@ -996,7 +952,6 @@ allocate(this%cvh4(1:this%lm))                                   ; this%cvh4=0.
 !***********************************************************************
 !                                                                      !
 ! Define weights and scales                                            !
-   import mg_intstate_type
 !                                                                      !
 implicit none
 class (mg_intstate_type),target::this
@@ -1092,7 +1047,6 @@ real(r_kind):: gen_fac
 
 !&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
                         subroutine init_mg_line(this)
-   import mg_intstate_type
 implicit none
 class(mg_intstate_type),target::this
 integer(i_kind):: i,j,L,icol

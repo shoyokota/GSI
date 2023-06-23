@@ -446,7 +446,7 @@ integer(i_kind):: i,j,iL,jL
 !
      W_AUX(:,:,:)= 0.
 
-  do j=this%jm,2,-2
+  do j=this%jm-mod(this%jm,2),2,-2
     jL = j/2
     do i=this%im,1,-1
       W_AUX(:,i,jL+2)=W_AUX(:,i,jL+2)+this%p_coef(4)*F(:,i,j)
@@ -458,7 +458,7 @@ integer(i_kind):: i,j,iL,jL
 !
 ! 2)
 !
-  do j=this%jm-1,1,-2
+  do j=this%jm-1+mod(this%jm,2),1,-2
     jL=j/2
     do i=this%im,1,-1
       W_AUX(:,i,jL+2)=W_AUX(:,i,jL+2)+this%q_coef(4)*F(:,i,j)
@@ -473,14 +473,14 @@ integer(i_kind):: i,j,iL,jL
 ! 1)
 !
   do jL=this%jmL+2,-1,-1
-    do i=this%im-1,1,-2
+    do i=this%im-1+mod(this%im,2),1,-2
     iL = i/2
       W(:,iL+2,jL)=W(:,iL+2,jL)+this%q_coef(4)*W_AUX(:,i,jL)
       W(:,iL+1,jL)=W(:,iL+1,jL)+this%q_coef(3)*W_AUX(:,i,jL)
       W(:,iL  ,jL)=W(:,iL  ,jL)+this%q_coef(2)*W_AUX(:,i,jL)
       W(:,iL-1,jL)=W(:,iL-1,jL)+this%q_coef(1)*W_AUX(:,i,jL)
     enddo
-    do i=this%im,2,-2
+    do i=this%im-mod(this%im,2),2,-2
     iL=i/2
       W(:,iL+2,jL)=W(:,iL+2,jL)+this%p_coef(4)*W_AUX(:,i,jL)
       W(:,iL+1,jL)=W(:,iL+1,jL)+this%p_coef(3)*W_AUX(:,i,jL)
@@ -517,12 +517,12 @@ integer(i_kind):: i,j,iL,jL
 ! 1)
 !
    do jL=-1,this%jmL+2
-     do i=1,this%im-1,2
+     do i=1,this%im-1+mod(this%im,2),2
        iL=i/2
          W_AUX(:,i,jL)=this%q_coef(1)*W(:,iL-1,jL)+this%q_coef(2)*W(:,iL  ,jL)              &
                       +this%q_coef(3)*W(:,iL+1,jL)+this%q_coef(4)*W(:,iL+2,jL)
      enddo
-     do i=2,this%im,2
+     do i=2,this%im-mod(this%im,2),2
        iL=i/2
          W_AUX(:,i,jL)=this%p_coef(1)*W(:,iL-1,jL)+this%p_coef(2)*w(:,iL  ,jL)              &
                       +this%p_coef(3)*W(:,iL+1,jL)+this%p_coef(4)*W(:,iL+2,jL)
@@ -531,7 +531,7 @@ integer(i_kind):: i,j,iL,jL
 !
 ! 2)
 !
-   do j=1,this%jm-1,2
+   do j=1,this%jm-1+mod(this%jm,2),2
      jL=j/2
      do i=1,this%im
        F(:,i,j)=this%q_coef(1)*W_AUX(:,i,jL-1)+this%q_coef(2)*W_AUX(:,i,jL  )               &
@@ -541,7 +541,7 @@ integer(i_kind):: i,j,iL,jL
 !
 ! 3)
 !
-   do j=2,this%jm,2
+   do j=2,this%jm-mod(this%jm,2),2
      jL=j/2
      do i=1,this%im
        F(:,i,j)=this%p_coef(1)*W_AUX(:,i,jL-1)+this%p_coef(2)*W_AUX(:,i,jL  )               &
@@ -577,7 +577,7 @@ integer(i_kind):: i,j,iL,jL
 !
      W_AUX(:,:,:)= 0.
 
-  do j=this%jm,2,-2
+  do j=this%jm-mod(this%jm,2),2,-2
     jL = j/2
     do i=this%im,1,-1
       W_AUX(:,i,jL+1)=W_AUX(:,i,jL+1)+this%b_coef(3)*F(:,i,j)
@@ -588,7 +588,7 @@ integer(i_kind):: i,j,iL,jL
 !
 ! 2)
 !
-  do j=this%jm-1,1,-2
+  do j=this%jm-1+mod(this%jm,2),1,-2
     jL=(j+1)/2
     do i=this%im,1,-1
       W_AUX(:,i,jL+1)=W_AUX(:,i,jL+1)+this%a_coef(3)*F(:,i,j)
@@ -602,13 +602,13 @@ integer(i_kind):: i,j,iL,jL
 ! 1)
 !
   do jL=this%jmL+1,0,-1
-    do i=this%im-1,1,-2
+    do i=this%im-1+mod(this%im,2),1,-2
     iL = (i+1)/2
       W(:,iL+1,jL)=W(:,iL+1,jL)+this%a_coef(3)*W_AUX(:,i,jL)
       W(:,iL  ,jL)=W(:,iL  ,jL)+this%a_coef(2)*W_AUX(:,i,jL)
       W(:,iL-1,jL)=W(:,iL-1,jL)+this%a_coef(1)*W_AUX(:,i,jL)
     enddo
-    do i=this%im,2,-2
+    do i=this%im-mod(this%im,2),2,-2
     iL=i/2
       W(:,iL+1,jL)=W(:,iL+1,jL)+this%b_coef(3)*W_AUX(:,i,jL)
       W(:,iL  ,jL)=W(:,iL  ,jL)+this%b_coef(2)*W_AUX(:,i,jL)
@@ -643,12 +643,12 @@ integer(i_kind):: i,j,iL,jL
 ! 1)
 !
    do jL=0,this%jmL+1
-     do i=1,this%im-1,2
+     do i=1,this%im-1+mod(this%im,2),2
        iL=(i+1)/2
          W_AUX(:,i,jL)=this%a_coef(1)*W(:,iL-1,jL)+this%a_coef(2)*W(:,iL  ,jL)    &
                       +this%a_coef(3)*W(:,iL+1,jL)
      enddo
-     do i=2,this%im,2
+     do i=2,this%im-mod(this%im,2),2
        iL=i/2
          W_AUX(:,i,jL)=this%b_coef(1)*W(:,iL-1,jL)+this%b_coef(2)*w(:,iL  ,jL)    &
                       +this%b_coef(3)*W(:,iL+1,jL)
@@ -657,7 +657,7 @@ integer(i_kind):: i,j,iL,jL
 !
 ! 2)
 !
-   do j=1,this%jm-1,2
+   do j=1,this%jm-1+mod(this%jm,2),2
      jL=(j+1)/2
      do i=1,this%im
        F(:,i,j)=this%a_coef(1)*W_AUX(:,i,jL-1)+this%a_coef(2)*W_AUX(:,i,jL  )     &
@@ -667,7 +667,7 @@ integer(i_kind):: i,j,iL,jL
 !
 ! 3)
 !
-   do j=2,this%jm,2
+   do j=2,this%jm-mod(this%jm,2),2
      jL=j/2
      do i=1,this%im
        F(:,i,j)=this%b_coef(1)*W_AUX(:,i,jL-1)+this%b_coef(2)*W_AUX(:,i,jL  )     &
