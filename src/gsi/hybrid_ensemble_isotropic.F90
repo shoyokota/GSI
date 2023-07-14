@@ -817,7 +817,7 @@ subroutine normal_new_factorization_rf_z
 
   use kinds, only: r_kind,i_kind
   use hybrid_ensemble_parameters, only: grd_ens
-  use hybrid_ensemble_parameters, only: naensgrp,naensloc,l_etlm
+  use hybrid_ensemble_parameters, only: naensgrp,naensloc
   use constants, only: zero,one
   implicit none
 
@@ -831,13 +831,7 @@ subroutine normal_new_factorization_rf_z
 
   znorm_new=one
 
-  do ig=1,naensloc
-     if(l_etlm) then
-        if(ig>naensgrp.and.ig/=naensloc-1) cycle
-     else
-        if(ig>naensgrp) cycle
-     endif
-
+  do ig=1,naensgrp
      do k=1,grd_ens%nsig
         f=zero
         f(:,k)=one
@@ -904,7 +898,7 @@ subroutine normal_new_factorization_rf_x
 
   use kinds, only: r_kind,i_kind
   use hybrid_ensemble_parameters, only: grd_loc,vvlocal
-  use hybrid_ensemble_parameters, only: naensgrp,naensloc,l_etlm
+  use hybrid_ensemble_parameters, only: naensgrp,naensloc
   use constants, only: zero,one
 
   implicit none
@@ -930,13 +924,7 @@ subroutine normal_new_factorization_rf_x
   allocate(diag(grd_loc%nlat,grd_loc%nlon,kl))
   xnorm_new=one
 
-  do ig=1,naensloc
-     if(l_etlm) then
-        if(ig>naensgrp.and.ig/=naensloc-1) cycle
-     else
-        if(ig>naensgrp) cycle
-     endif
-
+  do ig=1,naensgrp
      do j=1,grd_loc%nlon
         f=zero
         do k=1,kl
@@ -1014,7 +1002,7 @@ subroutine normal_new_factorization_rf_y
 
   use kinds, only: r_kind,i_kind
   use hybrid_ensemble_parameters, only: grd_loc,vvlocal
-  use hybrid_ensemble_parameters, only: naensgrp,naensloc,l_etlm
+  use hybrid_ensemble_parameters, only: naensgrp,naensloc
   use constants, only: zero,one
   implicit none
 
@@ -1049,14 +1037,8 @@ subroutine normal_new_factorization_rf_y
     lend=grd_loc%nlat/grd_loc%nlon + 1
     iend=grd_loc%nlon 
   endif
-
-  do ig=1,naensloc
-     if(l_etlm) then
-        if(ig>naensgrp.and.ig/=naensloc-1) cycle
-     else
-        if(ig>naensgrp) cycle
-     endif
-
+              
+  do ig=1,naensgrp
      do loop=1,lend
         ll=(loop-1)*iend
         f=zero
@@ -1870,13 +1852,14 @@ end subroutine normal_new_factorization_rf_y
     do k=1,km
        do ic3=1,nc3d
           ipic=ipc3d(ic3)
+          iaens=1
           do j=1,jm
              do i=1,im
                 cvec%r3(ipic)%q(i,j,k)=zero
              enddo
           enddo
           do ig=1,ntotensgrp
-             iaens=ensgrp2aensgrp(ig,ic3,ibin)
+             if(ig0==0) iaens=ensgrp2aensgrp(ig,ic3,ibin)
              if(iaens>0) then
                 do n=1,n_ens
                    do j=1,jm
@@ -1894,6 +1877,7 @@ end subroutine normal_new_factorization_rf_y
 !$omp parallel do schedule(dynamic,1) private(j,n,k,i,ic2,ipic,ig,iaens)
     do ic2=1,nc2d
        ipic=ipc2d(ic2)
+       iaens=1
        do j=1,jm
           do i=1,im
              cvec%r2(ipic)%q(i,j)=zero
@@ -1911,7 +1895,7 @@ end subroutine normal_new_factorization_rf_y
              endif
 
              do ig=1,ntotensgrp
-                iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
+                if(ig0==0) iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
                 if(iaens>0) then
                    do n=1,n_ens
                       do j=1,jm
@@ -1929,7 +1913,7 @@ end subroutine normal_new_factorization_rf_y
           case('SST')
  
              do ig=1,ntotensgrp
-                iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
+                if(ig0==0) iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
                 if(iaens>0) then
                    do n=1,n_ens
                       do j=1,jm
@@ -2053,13 +2037,14 @@ end subroutine normal_new_factorization_rf_y
     do k=1,km
        do ic3=1,nc3d
           ipic=ipc3d(ic3)
+          iaens=1
           do j=1,jm
              do i=1,im
                 work_ens%r3(ipic)%q(i,j,k)=zero
              enddo
           enddo
           do ig=1,ntotensgrp
-             iaens=ensgrp2aensgrp(ig,ic3,ibin)
+             if(ig0==0) iaens=ensgrp2aensgrp(ig,ic3,ibin)
              if(iaens>0) then
                 do n=1,n_ens
                    do j=1,jm
@@ -2076,6 +2061,7 @@ end subroutine normal_new_factorization_rf_y
 !$omp parallel do schedule(dynamic,1) private(j,n,k,i,ic2,ipic,ig,iaens)
     do ic2=1,nc2d
        ipic=ipc2d(ic2)
+       iaens=1
        do j=1,jm
           do i=1,im
              work_ens%r2(ipic)%q(i,j)=zero
@@ -2093,7 +2079,7 @@ end subroutine normal_new_factorization_rf_y
              endif
 
              do ig=1,ntotensgrp
-                iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
+                if(ig0==0) iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
                 if(iaens>0) then
                    do n=1,n_ens
                       do k=1,km_tmp
@@ -2111,7 +2097,7 @@ end subroutine normal_new_factorization_rf_y
           case('SST')
 
              do ig=1,ntotensgrp
-                iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
+                if(ig0==0) iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
                 if(iaens>0) then
                    do n=1,n_ens
                       do j=1,jm
@@ -2234,9 +2220,10 @@ end subroutine normal_new_factorization_rf_y
     ipx=1
 !$omp parallel do schedule(dynamic,1) private(j,n,ic3,k,i,ic2,ipic,ig,iaens)
     do n=1,n_ens
+       iaens=1
        do ig=1,ntotensgrp
           do ic3=1,nc3d
-             iaens=ensgrp2aensgrp(ig,ic3,ibin)
+             if(ig0==0) iaens=ensgrp2aensgrp(ig,ic3,ibin)
              if(iaens>0) then
                 ipic=ipc3d(ic3)
                 do k=1,km
@@ -2250,7 +2237,7 @@ end subroutine normal_new_factorization_rf_y
              endif ! iaens>0
           enddo
           do ic2=1,nc2d
-             iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
+             if(ig0==0) iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
              if(iaens>0) then
                 ipic=ipc2d(ic2)
                 select case ( trim(StrUpCase(cvars2d(ic2))) )
@@ -2405,9 +2392,10 @@ end subroutine normal_new_factorization_rf_y
     km=a_en(1,1)%grid%km
 !$omp parallel do schedule(dynamic,1) private(j,n,ic3,k,i,ic2,ipic,ig,iaens)
     do n=1,n_ens
+       iaens=1
        do ig=1,ntotensgrp
           do ic3=1,nc3d
-             iaens=ensgrp2aensgrp(ig,ic3,ibin)
+             if(ig0==0) iaens=ensgrp2aensgrp(ig,ic3,ibin)
              if(iaens>0) then
                 ipic=ipc3d(ic3)
                 do k=1,km
@@ -2421,7 +2409,7 @@ end subroutine normal_new_factorization_rf_y
              endif ! iaens>0
           enddo
           do ic2=1,nc2d
-             iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
+             if(ig0==0) iaens=ensgrp2aensgrp(ig,ic2+nc3d,ibin)
              if(iaens>0) then
                 ipic=ipc2d(ic2)
                 select case ( trim(StrUpCase(cvars2d(ic2))) )
@@ -2502,6 +2490,7 @@ end subroutine normal_new_factorization_rf_y
     use hybrid_ensemble_parameters, only: en_perts,ntlevs_etlm,infl_etlm
     use gsi_bundlemod, only: gsi_bundlegetvar
     use gsi_bundlemod, only: gsi_bundleputvar
+    use obsmod, only: if_model_dbz
     implicit none
 
     type(gsi_bundle),intent(inout) :: val
@@ -2521,6 +2510,7 @@ end subroutine normal_new_factorization_rf_y
     real(r_kind),pointer,dimension(:,:,:) :: se_v=>NULL()
     real(r_kind),pointer,dimension(:,:,:) :: se_tv=>NULL()
     real(r_kind),pointer,dimension(:,:)   :: se_ps=>NULL()
+    real(r_kind),pointer,dimension(:,:,:) :: se_dbz=>NULL()
     real(r_kind),pointer,dimension(:,:,:) :: ce_sf=>NULL()
     real(r_kind),pointer,dimension(:,:,:) :: ce_vp=>NULL()
     real(r_kind),allocatable,dimension(:) :: z
@@ -2614,6 +2604,7 @@ end subroutine normal_new_factorization_rf_y
           call gsi_bundlegetpointer ( eval(ii), 'v', se_v, istatus )
           call gsi_bundlegetpointer ( eval(ii), 'tv', se_tv, istatus )
           call gsi_bundlegetpointer ( eval(ii), 'ps', se_ps, istatus )
+          if(if_model_dbz) call gsi_bundlegetpointer ( eval(ii), 'dbz', se_dbz, istatus )
           grade%step(1)%values=zero
           if(uv_hyb_ens) then
              call gsi_bundleputvar ( grade%step(1), 'sf', se_u, istatus )
@@ -2625,6 +2616,7 @@ end subroutine normal_new_factorization_rf_y
           end if
           call gsi_bundleputvar ( grade%step(1), 't' , se_tv, istatus )
           call gsi_bundleputvar ( grade%step(1), 'ps', se_ps, istatus )
+          if(if_model_dbz) call gsi_bundleputvar ( grade%step(1), 'dbz', se_dbz, istatus )
           call gsi_bundleputvar ( eval(ii), 'u', zero, istatus )
           call gsi_bundleputvar ( eval(ii), 'v', zero, istatus )
           call gsi_bundleputvar ( eval(ii), 'tv', zero, istatus )
@@ -2665,6 +2657,7 @@ end subroutine normal_new_factorization_rf_y
           call gsi_bundlegetpointer ( eval(ii), 'v', se_v, istatus )
           call gsi_bundlegetpointer ( eval(ii), 'tv', se_tv, istatus )
           call gsi_bundlegetpointer ( eval(ii), 'ps', se_ps, istatus )
+          if(if_model_dbz) call gsi_bundlegetpointer ( eval(ii), 'dbz', se_dbz, istatus )
           if(dual_res) then
              call ensemble_forward_model_dual_res(grade%step(1),grade%aens(1,1,1:n_ens),ii,naensgrp0)
           else
@@ -2684,6 +2677,7 @@ end subroutine normal_new_factorization_rf_y
           end if
           call gsi_bundlegetvar ( grade%step(1), 't' , se_tv, istatus )
           call gsi_bundlegetvar ( grade%step(1), 'ps', se_ps, istatus )
+          if(if_model_dbz) call gsi_bundlegetvar ( grade%step(1), 'dbz', se_dbz, istatus )
           grade%step(1)%values=zero
        end do
        val%values=zero
@@ -4485,7 +4479,7 @@ subroutine hybens_localization_setup
                                          vvlocal,s_ens_h,s_ens_hv,s_ens_v,s_ens_vv
    use hybrid_ensemble_parameters, only: ntotensgrp,naensgrp,naensloc,ntlevs_ens,nsclgrp
    use hybrid_ensemble_parameters, only: en_perts
-   use hybrid_ensemble_parameters, only: en_etlm,l_etlm,nelen
+   use hybrid_ensemble_parameters, only: en_etlm,l_etlm,nelen,infl_etlm_dbz
    use gsi_bundlemod, only : gsi_bundlesum
    use gsi_io, only: verbose
 
@@ -4668,11 +4662,19 @@ subroutine hybens_localization_setup
                enddo
             enddo
             call bkgcov_a_en_new_factorization(naensloc,a_en)
-            do n=1,n_ens
-               do k=1,grd_ens%nsig
-                  en_perts(n,naensgrp+1,m)%r3(ipic)%qr4(:,:,k)=a_en(n)%r3(1)%q(:,:,k)
+            if( trim(StrUpCase(cvars3d(ic3))) == 'DBZ' ) then
+               do n=1,n_ens
+                  do k=1,grd_ens%nsig
+                     en_perts(n,naensgrp+1,m)%r3(ipic)%qr4(:,:,k)=a_en(n)%r3(1)%q(:,:,k)*infl_etlm_dbz
+                  enddo
                enddo
-            enddo
+            else
+               do n=1,n_ens
+                  do k=1,grd_ens%nsig
+                     en_perts(n,naensgrp+1,m)%r3(ipic)%qr4(:,:,k)=a_en(n)%r3(1)%q(:,:,k)
+                  enddo
+               enddo
+            endif
          enddo
          do ic2=1,nc2d
             ipic=ipc2d(ic2)

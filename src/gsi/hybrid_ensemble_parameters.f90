@@ -310,6 +310,7 @@ module hybrid_ensemble_parameters
   public :: l_etlm
   public :: ntlevs_etlm
   public :: infl_etlm
+  public :: infl_etlm_dbz
   public :: i_en_perts_io
   public :: l_ens_in_diff_time
   public :: ensemble_path
@@ -358,6 +359,7 @@ module hybrid_ensemble_parameters
   real(r_kind) s_ens_h(max_naensloc)
   real(r_kind) s_ens_v(max_naensloc)
   real(r_kind) infl_etlm
+  real(r_kind) infl_etlm_dbz
   type(sub2grid_info),save :: grd_ens,grd_loc,grd_sploc,grd_anl,grd_e1,grd_a1
   type(spec_vars),save :: sp_ens,sp_loc
   type(egrid2agrid_parm),save :: p_e2a,p_sploc2ens
@@ -478,6 +480,7 @@ subroutine init_hybrid_ensemble_parameters
   l_etlm=.false.
   ntlevs_etlm=1
   infl_etlm=one
+  infl_etlm_dbz=one
   i_en_perts_io=0            ! default for en_pert IO. 0 is no IO
   ensemble_path = './'       ! default for path to ensemble members
   ens_fast_read=.false.
