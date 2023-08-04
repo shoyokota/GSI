@@ -1032,16 +1032,18 @@ real(r_kind):: gen_fac
         end do
 
 
-        call this%cholaspect(1,this%lm,this%pasp1)
-        call this%cholaspect(this%i0,this%im,this%j0,this%jm,this%pasp2)
-        call this%cholaspect(this%i0,this%im,this%j0,this%jm,1,this%lm,this%pasp3)
+        if(.not.this%mgbf_line) then
+           call this%cholaspect(1,this%lm,this%pasp1)
+           call this%cholaspect(this%i0,this%im,this%j0,this%jm,this%pasp2)
+           call this%cholaspect(this%i0,this%im,this%j0,this%jm,1,this%lm,this%pasp3)
 
 
-        call this%getlinesum(this%hx,this%i0,this%im,this%paspx,this%ssx)
-        call this%getlinesum(this%hy,this%j0,this%jm,this%paspy,this%ssy)
-        call this%getlinesum(this%hz,1,this%lm,this%pasp1,this%ss1)
-        call this%getlinesum(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%pasp2,this%ss2)
-        call this%getlinesum(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%hz,1,this%lm,this%pasp3,this%ss3)
+           call this%getlinesum(this%hx,this%i0,this%im,this%paspx,this%ssx)
+           call this%getlinesum(this%hy,this%j0,this%jm,this%paspy,this%ssy)
+           call this%getlinesum(this%hz,1,this%lm,this%pasp1,this%ss1)
+           call this%getlinesum(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%pasp2,this%ss2)
+           call this%getlinesum(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%hz,1,this%lm,this%pasp3,this%ss3)
+        end if
 !-----------------------------------------------------------------------
                         endsubroutine def_mg_weights
 

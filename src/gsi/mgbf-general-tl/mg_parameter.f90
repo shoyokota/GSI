@@ -908,7 +908,7 @@ integer(i_kind):: p
 !  hy=hx
 !  hz=6
 
-  this%nh= 6
+  this%nh= max(hx,hy,hz)
   this%nfil = this%nh + 2
 
 !  p = 4                !  Exponent of Beta function
