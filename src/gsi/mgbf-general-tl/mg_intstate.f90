@@ -1043,6 +1043,33 @@ real(r_kind):: gen_fac
            call this%getlinesum(this%hz,1,this%lm,this%pasp1,this%ss1)
            call this%getlinesum(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%pasp2,this%ss2)
            call this%getlinesum(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%hz,1,this%lm,this%pasp3,this%ss3)
+           if(.not.this%l_filt) then
+              this%VALL(1,this%im/2,1)=1.
+              call this%rbetaT(this%hx,this%i0,this%im,this%paspx,this%ssx,this%VALL(1,:,1))
+              call this%rbeta(this%hx,this%i0,this%im,this%paspx(1,1,:),this%ssx,this%VALL(1,:,1))
+              this%ssx=this%ssx/sqrt(this%VALL(1,this%im/2,1))
+              this%VALL(1,:,1)=0.
+              this%VALL(1,1,this%jm/2)=1.
+              call this%rbetaT(this%hy,this%j0,this%jm,this%paspy,this%ssy,this%VALL(1,1,:))
+              call this%rbeta(this%hy,this%j0,this%jm,this%paspy(1,1,:),this%ssy,this%VALL(1,1,:))
+              this%ssy=this%ssy/sqrt(this%VALL(1,1,this%jm/2))
+              this%VALL(1,1,:)=0.
+              this%VALL(this%lm/2,1,1)=1.
+              call this%rbetaT(this%hz,1,this%lm,this%pasp1,this%ss1,this%VALL(:,1,1))
+              call this%rbeta(this%hz,1,this%lm,this%pasp1(1,1,:),this%ss1,this%VALL(:,1,1))
+              this%ss1=this%ss1/sqrt(this%VALL(this%lm/2,1,1))
+              this%VALL(:,1,1)=0.
+              this%VALL(1,this%im/2,this%jm/2)=1.
+              call this%rbetaT(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%pasp2,this%ss2,this%VALL(1,:,:))
+              call this%rbeta(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%pasp2,this%ss2,this%VALL(1,:,:))
+              this%ss2=this%ss2/sqrt(this%VALL(1,this%im/2,this%jm/2))
+              this%VALL(1,:,:)=0.
+              this%VALL(this%lm/2,this%im/2,this%jm/2)=1.
+              call this%rbetaT(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%hz,1,this%lm,this%pasp3,this%ss3,this%VALL)
+              call this%rbeta(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%hz,1,this%lm,this%pasp3,this%ss3,this%VALL)
+              this%ss3=this%ss3/sqrt(this%VALL(this%lm/2,this%im/2,this%jm/2))
+              this%VALL(:,:,:)=0.
+           end if
         end if
 !-----------------------------------------------------------------------
                         endsubroutine def_mg_weights
