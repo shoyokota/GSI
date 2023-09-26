@@ -46,6 +46,7 @@ include "type_intstat_locpointer.inc"
 include  "type_parameter_point2this.inc"
 include "type_intstat_point2this.inc"
 !-----------------------------------------------------------------------
+if(this%l_filt) then
   if(mgbf_line) then
     if(mg_filt<4) then
        print*,'("Line filters have options 4-6")'
@@ -73,6 +74,9 @@ include "type_intstat_point2this.inc"
         case default
           call this%mg_filtering_fast          
        end select
+else
+  call this%mg_filtering_rad_highest
+endif
 
 !-----------------------------------------------------------------------
                         endsubroutine mg_filtering_procedure    
@@ -1240,6 +1244,63 @@ deallocate(HM2D)
 
 !-----------------------------------------------------------------------
                         endsubroutine mg_filtering_fast
+
+!&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+           module             subroutine mg_filtering_rad_highest(this)
+!***********************************************************************
+!                                                                      !
+! Multigrid filtering procedure 1:                                     !
+!                                                                      !
+!     - Multiple of 2D and 3D variables                                !
+!     - 1 upsending and downsending                                    !
+!     - Applicaton of Helmholtz differential operator                  !
+!     - 2d radial filter only for all variables                        !
+!                                                                      !
+!***********************************************************************
+implicit none
+class(mg_intstate_type),target:: this
+
+include  "type_parameter_locpointer.inc"
+include "type_intstat_locpointer.inc"
+include  "type_parameter_point2this.inc"
+include "type_intstat_point2this.inc"
+!-----------------------------------------------------------------------
+
+!***
+!*** Adjoint interpolate and upsend (Step 1)
+!***
+                                                call btim(upsend_tim)
+      call this%upsending_highest(VALL,HALL)
+                                                call etim(upsend_tim)
+!***
+!*** Apply adjoint of Beta filter at all generations 
+!***
+                                                call btim(bfiltT_tim)
+      call this%rbetaT(km,hx,i0,imH,hy,j0,jmH,&
+           &pasp2(:,:,i0:imH,j0:jmH),ss2(i0:imH,j0:jmH),HALL(:,i0-hx:imH+hx,j0-hy:jmH+hy))
+                                                call etim(bfiltT_tim)
+!***
+!*** Apply (a-b\nabla^2)
+!***
+                                                call btim(weight_tim)
+      call this%weighting_highest(HALL(:,i0-hx:imH+hx,j0-hy:jmH+hy))
+                                                call etim(weight_tim)
+!***
+!*** Apply Beta filter at all generations
+!***
+                                                call btim(bfilt_tim)
+      call this%rbeta(km,hx,i0,imH,hy,j0,jmH,&
+           &pasp2(:,:,i0:imH,j0:jmH),ss2(i0:imH,j0:jmH),HALL(:,i0-hx:imH+hx,j0-hy:jmH+hy))
+                                                call etim(bfilt_tim)
+!***
+!***  Downsend, interpolate and add, then zero high generations 
+!***
+                                                call btim(dnsend_tim)
+      call this%downsending_highest(HALL,VALL)
+                                                call etim(dnsend_tim)
+
+!-----------------------------------------------------------------------
+                        endsubroutine mg_filtering_rad_highest
 
 !&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
            module             subroutine sup_vrbeta1                        &

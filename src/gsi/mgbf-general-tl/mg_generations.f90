@@ -204,6 +204,77 @@ integer(i_kind):: iL,jL,i,j
                         endsubroutine downsending
 
 !&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+          module              subroutine upsending_highest                            &
+!***********************************************************************
+!                                                                      !
+!  Adjoint interpolate and upsend:                                     !
+!       First from g1->g2 (V -> H)                                     !
+!       Then  from g2->...->gn  (H -> H)                               !
+!                                                                      !
+!***********************************************************************
+(this,V,H)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+real(r_kind),dimension(this%km,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(in):: V
+real(r_kind),dimension(this%km,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(out):: H
+
+real(r_kind),dimension(this%km,this%i0-2:this%imL+2,this%j0-2:this%jmL+2):: H_INT
+integer(i_kind):: g
+!-----------------------------------------------------------------------
+!
+! From generation 1 to higher generations
+!
+  H(:,:,:)=0.
+  H(1:this%km,this%i0:this%im0(1),this%j0:this%jm0(1))=V(1:this%km,this%i0:this%im0(1),this%j0:this%jm0(1))
+  do g=1,this%gm-1 
+        call this%adjoint_highest(H(1:this%km,this%i0:this%im0(g),this%j0:this%jm0(g)),&
+             & H_INT(1:this%km,this%i0-2:this%im0(g+1)+2,this%j0-2:this%jm0(g+1)+2),this%km,g) 
+        H(1:this%km,this%i0:this%im0(g),this%j0:this%jm0(g))=0.
+        H(1:this%km,this%i0:this%im0(g+1),this%j0:this%jm0(g+1))=H_INT(1:this%km,this%i0:this%im0(g+1),this%j0:this%jm0(g+1))
+        H_INT(1:this%km,this%i0-2:this%im0(g+1)+2,this%j0-2:this%jm0(g+1)+2)=0.
+  end do
+
+!-----------------------------------------------------------------------
+                        endsubroutine upsending_highest
+
+!&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+           module             subroutine downsending_highest                          &
+!***********************************************************************
+!                                                                      !
+!  Downsend, interpolate and add:                                      !
+!      First from gm->g3...->g2                                        !
+!      Then  from g2->g1                                               !
+!                                                                      !
+!***********************************************************************
+(this,H,V)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+real(r_kind),dimension(this%km,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:this%jm+this%hy),intent(inout):: H
+real(r_kind),dimension(this%km,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:this%jm+this%hy),intent(inout):: V
+
+real(r_kind),dimension(this%km,this%i0-2:this%imL+2,this%j0-2:this%jmL+2):: H_INT
+integer(i_kind):: g
+!-----------------------------------------------------------------------
+!
+! Upper generations
+!
+    do g=this%gm,2,-1
+        H_INT(1:this%km,this%i0-2:this%im0(g)+2,this%j0-2:this%jm0(g)+2)=0.
+        H_INT(1:this%km,this%i0:this%im0(g),this%j0:this%jm0(g))=H(1:this%km,this%i0:this%im0(g),this%j0:this%jm0(g))
+        H(1:this%km,this%i0:this%im0(g-1),this%j0:this%jm0(g-1))=0.
+        call this%direct_highest(H_INT(1:this%km,this%i0-2:this%im0(g)+2,this%j0-2:this%jm0(g)+2),&
+             & H(1:this%km,this%i0:this%im0(g-1),this%j0:this%jm0(g-1)),this%km,g-1)
+    enddo
+    V(:,:,:)=0.
+    V(1:this%km,this%i0:this%im0(1),this%j0:this%jm0(1))=H(1:this%km,this%i0:this%im0(1),this%j0:this%jm0(1))
+    H(:,:,:)=0.
+
+!-----------------------------------------------------------------------
+                        endsubroutine downsending_highest
+
+!&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
                  module       subroutine upsending2                           &
 !***********************************************************************
 !                                                                      !
@@ -420,6 +491,34 @@ endif
 
 !-----------------------------------------------------------------------
                         endsubroutine weighting 
+
+!&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+                     module   subroutine weighting_highest                            &
+!***********************************************************************
+!                                                                      !
+!  Apply 2D differential operator to compound variable                 !
+!                                                                      !
+!***********************************************************************
+(this,H)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+real(r_kind),dimension(this%km,this%i0-this%hx:this%imH+this%hx,this%j0-this%hy:this%jmH+this%hy),intent(inout):: H
+
+integer(i_kind):: i,j,imx,jmx
+!-----------------------------------------------------------------------
+
+   imx = this%imH
+   jmx = this%jmH
+
+   do j=this%j0,jmx
+   do i=this%i0,imx
+      H(:,i,j)=this%a_diff_h(:,i,j)*H(:,i,j)                          
+   enddo
+   enddo
+
+!-----------------------------------------------------------------------
+                        endsubroutine weighting_highest
 
 !&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
                      module   subroutine adjoint                              &
@@ -677,6 +776,137 @@ integer(i_kind):: i,j,iL,jL
 
 !-----------------------------------------------------------------------
                         endsubroutine direct2
+
+!&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+                     module   subroutine adjoint_highest                              &
+!***********************************************************************
+!                                                                      !
+!   Mapping from the high to low resolution grid                       !
+!   using linearly squared interpolations                              !
+!                         - offset version -                           ! 
+!                                                                      !
+!***********************************************************************
+(this,F,W,km_in,g)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+integer(i_kind),intent(in):: g 
+integer(i_kind),intent(in):: km_in
+real(r_kind), dimension(km_in,this%i0:this%im0(g),this%j0:this%jm0(g)), intent(in):: F
+real(r_kind), dimension(km_in,this%i0-2:this%im0(g+1)+2,this%j0-2:this%jm0(g+1)+2), intent(out):: W
+real(r_kind), dimension(km_in,this%i0:this%im0(g),this%j0-2:this%jm0(g+1)+2):: W_AUX
+integer(i_kind):: i,j,iL,jL
+!-----------------------------------------------------------------------
+!
+! 3)
+!
+     W_AUX(:,:,:)= 0.
+
+  do j=this%jm0(g)-mod(this%jm0(g),2),2,-2
+    jL = j/2
+    do i=this%im0(g),1,-1
+      W_AUX(:,i,jL+2)=W_AUX(:,i,jL+2)+this%p_coef(4)*F(:,i,j)
+      W_AUX(:,i,jL+1)=W_AUX(:,i,jL+1)+this%p_coef(3)*F(:,i,j)
+      W_AUX(:,i,jL  )=W_AUX(:,i,jL  )+this%p_coef(2)*F(:,i,j)
+      W_AUX(:,i,jL-1)=W_AUX(:,i,jL-1)+this%p_coef(1)*F(:,i,j)
+    enddo
+  enddo
+!
+! 2)
+!
+  do j=this%jm0(g)-1+mod(this%jm0(g),2),1,-2
+    jL=j/2
+    do i=this%im0(g),1,-1
+      W_AUX(:,i,jL+2)=W_AUX(:,i,jL+2)+this%q_coef(4)*F(:,i,j)
+      W_AUX(:,i,jL+1)=W_AUX(:,i,jL+1)+this%q_coef(3)*F(:,i,j)
+      W_AUX(:,i,jL  )=W_AUX(:,i,jL  )+this%q_coef(2)*F(:,i,j)
+      W_AUX(:,i,jL-1)=W_AUX(:,i,jL-1)+this%q_coef(1)*F(:,i,j)
+    enddo
+  enddo
+
+    W(:,:,:)=0.
+!
+! 1)
+!
+  do jL=this%jm0(g+1)+2,-1,-1
+    do i=this%im0(g)-1+mod(this%im0(g),2),1,-2
+    iL = i/2
+      W(:,iL+2,jL)=W(:,iL+2,jL)+this%q_coef(4)*W_AUX(:,i,jL)
+      W(:,iL+1,jL)=W(:,iL+1,jL)+this%q_coef(3)*W_AUX(:,i,jL)
+      W(:,iL  ,jL)=W(:,iL  ,jL)+this%q_coef(2)*W_AUX(:,i,jL)
+      W(:,iL-1,jL)=W(:,iL-1,jL)+this%q_coef(1)*W_AUX(:,i,jL)
+    enddo
+    do i=this%im0(g)-mod(this%im0(g),2),2,-2
+    iL=i/2
+      W(:,iL+2,jL)=W(:,iL+2,jL)+this%p_coef(4)*W_AUX(:,i,jL)
+      W(:,iL+1,jL)=W(:,iL+1,jL)+this%p_coef(3)*W_AUX(:,i,jL)
+      W(:,iL  ,jL)=W(:,iL  ,jL)+this%p_coef(2)*W_AUX(:,i,jL)
+      W(:,iL-1,jL)=W(:,iL-1,jL)+this%p_coef(1)*W_AUX(:,i,jL)
+     enddo
+   enddo
+
+!-----------------------------------------------------------------------
+                        endsubroutine adjoint_highest
+
+!&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+                    module    subroutine direct_highest                              &
+!***********************************************************************
+!                                                                      !
+!   Mapping from the low to high resolution grid                       !
+!   using linearly squared interpolations                              !
+!                         - offset version -                           !
+!                                                                      !
+!***********************************************************************
+(this,W,F,km_in,g)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+integer(i_kind),intent(in):: g
+integer(i_kind),intent(in):: km_in
+real(r_kind), dimension(km_in,this%i0-2:this%im0(g+1)+2,this%j0-2:this%jm0(g+1)+2), intent(in):: W
+real(r_kind), dimension(km_in,this%i0:this%im0(g),this%j0:this%jm0(g)), intent(out):: F
+real(r_kind), dimension(km_in,this%i0:this%im0(g),this%j0-2:this%jm0(g+1)+2):: W_AUX
+integer(i_kind):: i,j,iL,jL
+!-----------------------------------------------------------------------
+
+!
+! 1)
+!
+   do jL=-1,this%jm0(g+1)+2
+     do i=1,this%im0(g)-1+mod(this%im0(g),2),2
+       iL=i/2
+         W_AUX(:,i,jL)=this%q_coef(1)*W(:,iL-1,jL)+this%q_coef(2)*W(:,iL  ,jL)              &
+                      +this%q_coef(3)*W(:,iL+1,jL)+this%q_coef(4)*W(:,iL+2,jL)
+     enddo
+     do i=2,this%im0(g)-mod(this%im0(g),2),2
+       iL=i/2
+         W_AUX(:,i,jL)=this%p_coef(1)*W(:,iL-1,jL)+this%p_coef(2)*w(:,iL  ,jL)              &
+                      +this%p_coef(3)*W(:,iL+1,jL)+this%p_coef(4)*W(:,iL+2,jL)
+     enddo
+   enddo
+!
+! 2)
+!
+   do j=1,this%jm0(g)-1+mod(this%jm0(g),2),2
+     jL=j/2
+     do i=1,this%im0(g)
+       F(:,i,j)=this%q_coef(1)*W_AUX(:,i,jL-1)+this%q_coef(2)*W_AUX(:,i,jL  )               &
+               +this%q_coef(3)*W_AUX(:,i,jL+1)+this%q_coef(4)*W_AUX(:,i,jL+2)
+     enddo
+   enddo
+!
+! 3)
+!
+   do j=2,this%jm0(g)-mod(this%jm0(g),2),2
+     jL=j/2
+     do i=1,this%im0(g)
+       F(:,i,j)=this%p_coef(1)*W_AUX(:,i,jL-1)+this%p_coef(2)*W_AUX(:,i,jL  )               &
+               +this%p_coef(3)*W_AUX(:,i,jL+1)+this%p_coef(4)*W_AUX(:,i,jL+2)
+     enddo
+   enddo
+
+!-----------------------------------------------------------------------
+                        endsubroutine direct_highest
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                         end submodule mg_generations

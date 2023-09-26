@@ -123,6 +123,7 @@ integer(i_kind):: npes_filt
 integer(i_kind):: maxpe_filt
 
 integer(i_kind):: imL,jmL
+integer(i_kind):: imH,jmH
 integer(i_kind):: lm            ! number of vertical layers
 integer(i_kind):: lm05          ! half of vertical levels
 integer(i_kind):: km2_f         ! number of 2d variables for filtering
@@ -675,6 +676,9 @@ integer(i_kind):: p
       if(this%gm>4) then
         this%gm=4
       endif
+      if(.not.this%l_filt) then
+        this%gm=4
+      endif
 !
 
 !***
@@ -891,6 +895,9 @@ integer(i_kind):: p
 
   this%imL=this%im/2
   this%jmL=this%jm/2
+
+  this%imH=this%im0(this%gm)
+  this%jmH=this%jm0(this%gm)
 
 !  pasp0=1
 !  pasp0 = 5         !  Main

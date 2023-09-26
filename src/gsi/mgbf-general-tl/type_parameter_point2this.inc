@@ -122,6 +122,8 @@ maxpe_filt=>this%maxpe_filt
 
  imL=>this%imL
  jmL=>this%jmL  
+ imH=>this%imH
+ jmH=>this%jmH  
 lm=>this%lm              ! number of vertical layers
  lm05=>this%lm05            ! half of vertical levels
 km2_f=>this%km2_f           ! number of 2d variables for filtering

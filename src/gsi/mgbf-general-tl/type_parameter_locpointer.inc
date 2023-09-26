@@ -39,6 +39,7 @@ integer, pointer, dimension(:):: FimaxL,FjmaxL
 integer(i_kind),pointer:: npes_filt
 integer(i_kind),pointer:: maxpe_filt
 integer(i_kind),pointer:: imL,jmL
+integer(i_kind),pointer:: imH,jmH
 integer(i_kind),pointer:: lm            ! number of vertical layers
 integer(i_kind),pointer:: lm05          ! half of vertical levels
 integer(i_kind),pointer:: km2_f         ! number of 2d variables for filtering

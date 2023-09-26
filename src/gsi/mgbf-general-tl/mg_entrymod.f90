@@ -53,7 +53,7 @@ class(mg_parameter_type),optional,intent(in)::obj_parameter
 !**** Initialize MPI
 !****
 
-      call this%init_mg_MPI
+      if(this%l_filt) call this%init_mg_MPI
 
 !***
 !*** Initialize integration domain
@@ -157,7 +157,7 @@ mm=this%mm
 lm=this%lm
 endif
 
-     call this%barrierMPI
+     if(this%l_filt) call this%barrierMPI
 
 
           call this%deallocate_mg_intstate          

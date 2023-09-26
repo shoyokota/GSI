@@ -188,7 +188,6 @@ module hybrid_ensemble_isotropic
 
 ! For MGBF
   type (mg_intstate_type):: obj_mgbf
-  real(r_kind), allocatable, dimension(:,:,:) :: hwork_mgbf
 
 contains
 
@@ -728,6 +727,7 @@ subroutine new_factorization_rf_y(f,iadvance,iback,nlevs,ig)
   nx=grd_loc%nlon ; ny=grd_loc%nlat ; nz=nlevs
 
   if(vvlocal)then
+!$omp parallel do schedule(dynamic,1) private(k,j,i,l)
      do k=1,nz
         do j=1,nx
 
@@ -760,6 +760,7 @@ subroutine new_factorization_rf_y(f,iadvance,iback,nlevs,ig)
         enddo
      enddo
   else
+!$omp parallel do schedule(dynamic,1) private(k,j,i,l)
      do k=1,nz
         do j=1,nx
 
@@ -3718,9 +3719,8 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
   type(gsi_bundle),intent(inout) :: a_en(n_ens)
 
 ! Local Variables
-  integer(i_kind) ii,i,j,k,iflg,iadvance,iback,is,ie,ipnt,istatus,kk
+  integer(i_kind) ii,i,j,k,iflg,iadvance,iback,is,ie,ipnt,istatus
   real(r_kind) hwork(grd_loc%inner_vars,grd_loc%nlat,grd_loc%nlon,grd_loc%kbegin_loc:grd_loc%kend_alloc)
-  real(r_kind) hwork_tmp(grd_loc%lon2,grd_loc%lat2)
   real(r_kind),allocatable,dimension(:):: a_en_work
 
   iflg=1
@@ -3732,104 +3732,71 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
   endif
 
 ! Apply vertical smoother on each ensemble member
-  if(regional.and.l_mgbf_loc_h) then
-     iadvance=1 ; iback=2
-!$omp parallel do schedule(dynamic,1) private(k,kk,ii,i,j,hwork_tmp)
-     do k=1,n_ens
-        call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
-        do kk=1,grd_loc%nsig
-           ii=(k-1)*grd_loc%nsig+kk
-           do j=1,grd_loc%lat2
-              do i=1,grd_loc%lon2
-                 hwork_tmp(i,j)=a_en(k)%r3(ipnt)%q(j,i,kk)
-              enddo
-           enddo
-           do j=obj_mgbf%m0,obj_mgbf%mm
-              do i=obj_mgbf%n0,obj_mgbf%nm
-                 hwork_mgbf(ii,i,j)=hwork_tmp(i+1,j+1)
-              enddo
-           enddo
-        enddo
-     enddo
-  else
 ! To avoid my having to touch the general sub2grid and grid2sub,
 ! get copy for ensemble components to work array
-     allocate(a_en_work(n_ens*a_en(1)%ndim),stat=istatus)
-     if(istatus/=0) then
-        write(6,*)'bkgcov_a_en_new_factorization: trouble in alloc(a_en_work)'
-        call stop2(999)
-     endif
-     iadvance=1 ; iback=2
-!$omp parallel do schedule(dynamic,1) private(k,ii,is,ie)
-     do k=1,n_ens
-        call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
-        ii=(k-1)*a_en(1)%ndim
-        is=ii+1
-        ie=ii+a_en(1)%ndim
-        a_en_work(is:ie)=a_en(k)%values(1:a_en(k)%ndim)
-     enddo
+  allocate(a_en_work(n_ens*a_en(1)%ndim),stat=istatus)
+  if(istatus/=0) then
+     write(6,*)'bkgcov_a_en_new_factorization: trouble in alloc(a_en_work)'
+     call stop2(999)
   endif
+  iadvance=1 ; iback=2
+!$omp parallel do schedule(dynamic,1) private(k,ii,is,ie)
+  do k=1,n_ens
+     call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
+     ii=(k-1)*a_en(1)%ndim
+     is=ii+1
+     ie=ii+a_en(1)%ndim
+     a_en_work(is:ie)=a_en(k)%values(1:a_en(k)%ndim)
+  enddo
 
+! Convert from subdomain to full horizontal field distributed among processors
+  call general_sub2grid(grd_loc,a_en_work,hwork)
 ! Apply horizontal smoother for number of horizontal scales
   if(regional) then
      if(l_mgbf_loc_h) then
-        call obj_mgbf%anal_to_filt_all(hwork_mgbf)
+!$omp parallel do schedule(dynamic,1) private(k,i,j)
+        do j=1,grd_loc%nlat
+           do i=1,grd_loc%nlon
+              do k=1,grd_loc%kend_alloc-grd_loc%kbegin_loc+1
+                 obj_mgbf%VALL(k,i,j)=hwork(1,j,i,k+grd_loc%kbegin_loc-1)
+              enddo
+           enddo
+        enddo
         call obj_mgbf%mg_filtering_procedure(obj_mgbf%mgbf_proc)
-        call obj_mgbf%filt_to_anal_all(hwork_mgbf)
+!$omp parallel do schedule(dynamic,1) private(k,i,j)
+        do j=1,grd_loc%nlat
+           do i=1,grd_loc%nlon
+              do k=1,grd_loc%kend_alloc-grd_loc%kbegin_loc+1
+                 hwork(1,j,i,k+grd_loc%kbegin_loc-1)=obj_mgbf%VALL(k,i,j)
+              enddo
+           enddo
+        enddo
      else
-! Convert from subdomain to full horizontal field distributed among processors
-        call general_sub2grid(grd_loc,a_en_work,hwork)
         iadvance=1 ; iback=2
         call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
         call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
         iadvance=2 ; iback=1
         call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
         call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
-! Put back onto subdomains
-        call general_grid2sub(grd_loc,hwork,a_en_work)
      endif
   else
-! Convert from subdomain to full horizontal field distributed among processors
-     call general_sub2grid(grd_loc,a_en_work,hwork)
      call sf_xy(ig,hwork,grd_loc%kbegin_loc,grd_loc%kend_loc)
-! Put back onto subdomains
-     call general_grid2sub(grd_loc,hwork,a_en_work)
   end if
+! Put back onto subdomains
+  call general_grid2sub(grd_loc,hwork,a_en_work)
 
 ! Retrieve ensemble components from long vector
 ! Apply vertical smoother on each ensemble member
-  if(regional.and.l_mgbf_loc_h) then
-     iadvance=2 ; iback=1
-!$omp parallel do schedule(dynamic,1) private(k,kk,ii,i,j,hwork_tmp)
-     do k=1,n_ens
-        do kk=1,grd_loc%nsig
-           ii=(k-1)*grd_loc%nsig+kk
-           hwork_tmp=zero
-           do j=obj_mgbf%m0,obj_mgbf%mm
-              do i=obj_mgbf%n0,obj_mgbf%nm
-                 hwork_tmp(i+1,j+1)=hwork_mgbf(ii,i,j)
-              enddo
-           enddo
-           do j=1,grd_loc%lat2
-              do i=1,grd_loc%lon2
-                 a_en(k)%r3(ipnt)%q(j,i,kk)=hwork_tmp(i,j)
-              enddo
-           enddo
-        enddo
-        call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
-     enddo
-  else
-     iadvance=2 ; iback=1
+  iadvance=2 ; iback=1
 !$omp parallel do schedule(dynamic,1) private(k,ii,is,ie)
-     do k=1,n_ens
-        ii=(k-1)*a_en(1)%ndim
-        is=ii+1
-        ie=ii+a_en(1)%ndim
-        a_en(k)%values(1:a_en(k)%ndim)=a_en_work(is:ie)
-        call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
-     enddo
-     deallocate(a_en_work)
-  endif
+  do k=1,n_ens
+     ii=(k-1)*a_en(1)%ndim
+     is=ii+1
+     ie=ii+a_en(1)%ndim
+     a_en(k)%values(1:a_en(k)%ndim)=a_en_work(is:ie)
+     call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
+  enddo
+  deallocate(a_en_work)
 
   return
 end subroutine bkgcov_a_en_new_factorization
@@ -3877,7 +3844,6 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
 ! Local Variables
   integer(i_kind) ii,i,j,k,iadvance,iback,is,ie,ipnt,istatus,kk
   real(r_kind) hwork(grd_loc%nlat*grd_loc%nlon*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1))
-  real(r_kind) hwork_tmp(grd_loc%lon2,grd_loc%lat2)
 !NOTE:   nval_lenz_en = nhoriz*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1)
 !      and nhoriz = grd_loc%nlat*grd_loc%nlon for regional,
 !          nhoriz = (sp_loc%jcap+1)*(sp_loc%jcap+2) for global
@@ -3910,38 +3876,40 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
         if(l_mgbf_loc_h) then
            ii=0
            do k=1,obj_mgbf%km
-              do j=obj_mgbf%j0-obj_mgbf%hy,obj_mgbf%jm+obj_mgbf%hy
-                 do i=obj_mgbf%i0-obj_mgbf%hx,obj_mgbf%im+obj_mgbf%hx
-                    ii=ii+2
-                    obj_mgbf%VALL(k,i,j)=z(ii-1)
+              do j=obj_mgbf%j0-obj_mgbf%hy,obj_mgbf%jmH+obj_mgbf%hy
+                 do i=obj_mgbf%i0-obj_mgbf%hx,obj_mgbf%imH+obj_mgbf%hx
+                    ii=ii+1
                     obj_mgbf%HALL(k,i,j)=z(ii)
                  enddo
               enddo
            enddo
-           call obj_mgbf%weighting_all(obj_mgbf%VALL,obj_mgbf%HALL,obj_mgbf%lhelm)
-           call obj_mgbf%boco_2d(obj_mgbf%VALL,obj_mgbf%km,&
-                & obj_mgbf%im,obj_mgbf%jm,obj_mgbf%hx,obj_mgbf%hy)
-           call obj_mgbf%boco_2d(obj_mgbf%HALL,obj_mgbf%km,&
-                & obj_mgbf%im,obj_mgbf%jm,obj_mgbf%hx,obj_mgbf%hy,&
-                & obj_mgbf%Fimax,obj_mgbf%Fjmax,2,obj_mgbf%gm)
+           call obj_mgbf%weighting_highest(&
+                & obj_mgbf%HALL(:,obj_mgbf%i0-obj_mgbf%hx:obj_mgbf%imH+obj_mgbf%hx,&
+                &                 obj_mgbf%j0-obj_mgbf%hy:obj_mgbf%jmH+obj_mgbf%hy))
            call obj_mgbf%rbeta(obj_mgbf%km,&
-                & obj_mgbf%hx,obj_mgbf%i0,obj_mgbf%im,&
-                & obj_mgbf%hy,obj_mgbf%j0,obj_mgbf%jm,&
-                & obj_mgbf%pasp2,obj_mgbf%ss2,obj_mgbf%VALL(:,:,:))
-           if(obj_mgbf%l_hgen) call obj_mgbf%rbeta(obj_mgbf%km,&
-                & obj_mgbf%hx,obj_mgbf%i0,obj_mgbf%im,&
-                & obj_mgbf%hy,obj_mgbf%j0,obj_mgbf%jm,&
-                & obj_mgbf%pasp2,obj_mgbf%ss2,obj_mgbf%HALL(:,:,:))
-           call obj_mgbf%downsending_all(obj_mgbf%HALL,obj_mgbf%VALL,obj_mgbf%lquart)
-           call obj_mgbf%filt_to_anal_all(hwork_mgbf)
+                & obj_mgbf%hx,obj_mgbf%i0,obj_mgbf%imH,&
+                & obj_mgbf%hy,obj_mgbf%j0,obj_mgbf%jmH,&
+                & obj_mgbf%pasp2(:,:,obj_mgbf%i0:obj_mgbf%imH,obj_mgbf%j0:obj_mgbf%jmH),&
+                & obj_mgbf%ss2(obj_mgbf%i0:obj_mgbf%imH,obj_mgbf%j0:obj_mgbf%jmH), &
+                & obj_mgbf%HALL(:,obj_mgbf%i0-obj_mgbf%hx:obj_mgbf%imH+obj_mgbf%hx,&
+                &                 obj_mgbf%j0-obj_mgbf%hy:obj_mgbf%jmH+obj_mgbf%hy))
+           call obj_mgbf%downsending_highest(obj_mgbf%HALL,obj_mgbf%VALL)
+!$omp parallel do schedule(dynamic,1) private(k,kk,i,ii,j)
+           do j=1,grd_loc%nlat
+              do i=1,grd_loc%nlon
+                 ii=j+(i-1)*grd_loc%nlat
+                 do k=1,grd_loc%kend_alloc-grd_loc%kbegin_loc+1
+                    kk=ii+(k-1)*grd_loc%nlat*grd_loc%nlon
+                    hwork(kk)=obj_mgbf%VALL(k,i,j)
+                 enddo
+              enddo
+           enddo
         else
 ! Make a copy of input variable z to hwork
            hwork=z
            iadvance=2 ; iback=1
            call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
            call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
-! Put back onto subdomains
-           call general_grid2sub(grd_loc,hwork,a_en_work)
         endif
      else
 #ifdef LATER
@@ -3949,40 +3917,20 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
 #else
         write(6,*) ' problem with ibm compiler with "use hybrid_ensemble_isotropic, only: sqrt_sf_xy"'
 #endif /*LATER*/
-! Put back onto subdomains
-        call general_grid2sub(grd_loc,hwork,a_en_work)
      end if
+! Put back onto subdomains
+     call general_grid2sub(grd_loc,hwork,a_en_work)
   end if
 
 ! Retrieve ensemble components from long vector
-  if(regional.and.l_mgbf_loc_h) then
-!$omp parallel do schedule(dynamic,1) private(k,kk,ii,i,j,hwork_tmp)
-     do k=1,n_ens
-        do kk=1,grd_loc%nsig
-           ii=(k-1)*grd_loc%nsig+kk
-           hwork_tmp=zero
-           do j=obj_mgbf%m0,obj_mgbf%mm
-              do i=obj_mgbf%n0,obj_mgbf%nm
-                 hwork_tmp(i+1,j+1)=hwork_mgbf(ii,i,j)
-              enddo
-           enddo
-           do j=1,grd_loc%lat2
-              do i=1,grd_loc%lon2
-                 a_en(k)%r3(ipnt)%q(j,i,kk)=hwork_tmp(i,j)
-              enddo
-           enddo
-        enddo
-     enddo
-  else
-     ii=0
-     do k=1,n_ens
-        is=ii+1
-        ie=ii+a_en(1)%ndim
-        a_en(k)%values(1:a_en(k)%ndim)=a_en_work(is:ie)
-        ii=ii+a_en(1)%ndim
-     enddo
-     deallocate(a_en_work)
-  endif
+  ii=0
+  do k=1,n_ens
+     is=ii+1
+     ie=ii+a_en(1)%ndim
+     a_en(k)%values(1:a_en(k)%ndim)=a_en_work(is:ie)
+     ii=ii+a_en(1)%ndim
+  enddo
+  deallocate(a_en_work)
 
 ! Apply vertical smoother on each ensemble member
   do k=1,n_ens
@@ -4043,7 +3991,6 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
 ! Local Variables
   integer(i_kind) ii,i,j,k,iadvance,iback,is,ie,ipnt,istatus,kk
   real(r_kind) hwork(grd_loc%nlat*grd_loc%nlon*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1))
-  real(r_kind) hwork_tmp(grd_loc%lon2,grd_loc%lat2)
 !NOTE:   nval_lenz_en = nhoriz*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1)
 !      and nhoriz = grd_loc%nlat*grd_loc%nlon for regional,
 !          nhoriz = (sp_loc%jcap+1)*(sp_loc%jcap+2) for global
@@ -4066,86 +4013,69 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
  
   enddo
 
-  if(regional.and.l_mgbf_loc_h) then
-     iadvance=1 ; iback=2
-!$omp parallel do schedule(dynamic,1) private(k,kk,ii,i,j,hwork_tmp)
-     do k=1,n_ens
-        do kk=1,grd_loc%nsig
-           ii=(k-1)*grd_loc%nsig+kk
-           do j=1,grd_loc%lat2
-              do i=1,grd_loc%lon2
-                 hwork_tmp(i,j)=a_en(k)%r3(ipnt)%q(j,i,kk)
-              enddo
-           enddo
-           do j=obj_mgbf%m0,obj_mgbf%mm
-              do i=obj_mgbf%n0,obj_mgbf%nm
-                 hwork_mgbf(ii,i,j)=hwork_tmp(i+1,j+1)
-              enddo
-           enddo
-        enddo
-     enddo
-  else
 ! To avoid my having to touch the general sub2grid and grid2sub,
 ! get copy for ensemble components to work array
-     allocate(a_en_work(n_ens*a_en(1)%ndim),stat=istatus)
-     if(istatus/=0) then
-        write(6,*)'ckgcov_a_en_new_factorization_ad: trouble in alloc(a_en_work)'
-        call stop2(999)
-     endif
-     ii=0
-     do k=1,n_ens
-        is=ii+1
-        ie=ii+a_en(1)%ndim
-        a_en_work(is:ie)=a_en(k)%values(1:a_en(k)%ndim)
-        ii=ii+a_en(1)%ndim
-     enddo
+  allocate(a_en_work(n_ens*a_en(1)%ndim),stat=istatus)
+  if(istatus/=0) then
+     write(6,*)'ckgcov_a_en_new_factorization_ad: trouble in alloc(a_en_work)'
+     call stop2(999)
   endif
+  ii=0
+  do k=1,n_ens
+     is=ii+1
+     ie=ii+a_en(1)%ndim
+     a_en_work(is:ie)=a_en(k)%values(1:a_en(k)%ndim)
+     ii=ii+a_en(1)%ndim
+  enddo
 
   if(grd_loc%kend_loc+1-grd_loc%kbegin_loc==0) then
 !     no work to be done on this processor, but z still has allocated space, since
 !                     grd_loc%kend_alloc = grd_loc%kbegin_loc in this case, so set to zero.
      z=zero
   else
+! Convert from subdomain to full horizontal field distributed among processors
+     call general_sub2grid(grd_loc,a_en_work,hwork)
 ! Apply horizontal smoother for number of horizontal scales
      if(regional) then
         if(l_mgbf_loc_h) then
-           call obj_mgbf%anal_to_filt_all(hwork_mgbf)
-           call obj_mgbf%upsending_all(obj_mgbf%VALL,obj_mgbf%HALL,obj_mgbf%lquart)
+           obj_mgbf%VALL=zero
+!$omp parallel do schedule(dynamic,1) private(k,kk,i,ii,j)
+           do j=1,grd_loc%nlat
+              do i=1,grd_loc%nlon
+                 ii=j+(i-1)*grd_loc%nlat
+                 do k=1,grd_loc%kend_alloc-grd_loc%kbegin_loc+1
+                    kk=ii+(k-1)*grd_loc%nlat*grd_loc%nlon
+                    obj_mgbf%VALL(k,i,j)=hwork(kk)
+                 enddo
+              enddo
+           enddo
+           call obj_mgbf%upsending_highest(obj_mgbf%VALL,obj_mgbf%HALL)
            call obj_mgbf%rbetaT(obj_mgbf%km,&
-                & obj_mgbf%hx,obj_mgbf%i0,obj_mgbf%im,&
-                & obj_mgbf%hy,obj_mgbf%j0,obj_mgbf%jm,&
-                & obj_mgbf%pasp2,obj_mgbf%ss2,obj_mgbf%VALL(:,:,:))
-           if(obj_mgbf%l_hgen) call obj_mgbf%rbetaT(obj_mgbf%km,&
-                & obj_mgbf%hx,obj_mgbf%i0,obj_mgbf%im,&
-                & obj_mgbf%hy,obj_mgbf%j0,obj_mgbf%jm,&
-                & obj_mgbf%pasp2,obj_mgbf%ss2,obj_mgbf%HALL(:,:,:))
-           call obj_mgbf%bocoT_2d(obj_mgbf%VALL,obj_mgbf%km,&
-                & obj_mgbf%im,obj_mgbf%jm,obj_mgbf%hx,obj_mgbf%hy)
-           call obj_mgbf%bocoT_2d(obj_mgbf%HALL,obj_mgbf%km,&
-                & obj_mgbf%im,obj_mgbf%jm,obj_mgbf%hx,obj_mgbf%hy,&
-                & obj_mgbf%Fimax,obj_mgbf%Fjmax,2,obj_mgbf%gm)
-           call obj_mgbf%weighting_all(obj_mgbf%VALL,obj_mgbf%HALL,obj_mgbf%lhelm)
+                & obj_mgbf%hx,obj_mgbf%i0,obj_mgbf%imH,&
+                & obj_mgbf%hy,obj_mgbf%j0,obj_mgbf%jmH,&
+                & obj_mgbf%pasp2(:,:,obj_mgbf%i0:obj_mgbf%imH,obj_mgbf%j0:obj_mgbf%jmH),&
+                & obj_mgbf%ss2(obj_mgbf%i0:obj_mgbf%imH,obj_mgbf%j0:obj_mgbf%jmH), &
+                & obj_mgbf%HALL(:,obj_mgbf%i0-obj_mgbf%hx:obj_mgbf%imH+obj_mgbf%hx,&
+                &                 obj_mgbf%j0-obj_mgbf%hy:obj_mgbf%jmH+obj_mgbf%hy))
+           call obj_mgbf%weighting_highest(&
+                & obj_mgbf%HALL(:,obj_mgbf%i0-obj_mgbf%hx:obj_mgbf%imH+obj_mgbf%hx,&
+                &                 obj_mgbf%j0-obj_mgbf%hy:obj_mgbf%jmH+obj_mgbf%hy))
            ii=0
            do k=1,obj_mgbf%km
-              do j=obj_mgbf%j0-obj_mgbf%hy,obj_mgbf%jm+obj_mgbf%hy
-                 do i=obj_mgbf%i0-obj_mgbf%hx,obj_mgbf%im+obj_mgbf%hx
-                    ii=ii+2
-                    z(ii-1)=obj_mgbf%VALL(k,i,j)
+              do j=obj_mgbf%j0-obj_mgbf%hy,obj_mgbf%jmH+obj_mgbf%hy
+                 do i=obj_mgbf%i0-obj_mgbf%hx,obj_mgbf%imH+obj_mgbf%hx
+                    ii=ii+1
                     z(ii)=obj_mgbf%HALL(k,i,j)
                  enddo
               enddo
            enddo
         else
-! Convert from subdomain to full horizontal field distributed among processors
-           call general_sub2grid(grd_loc,a_en_work,hwork)
            iadvance=1 ; iback=2
            call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
            call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
         endif
         z=hwork
      else
-! Convert from subdomain to full horizontal field distributed among processors
-        call general_sub2grid(grd_loc,a_en_work,hwork)
         call sqrt_sf_xy_ad(ig,z,hwork,grd_loc%kbegin_loc,grd_loc%kend_loc)
      end if
   end if
@@ -4462,8 +4392,6 @@ subroutine hybens_localization_setup
    if ( regional ) then ! convert s_ens_h from km to grid units.
       if ( l_mgbf_loc_h ) then
          call obj_mgbf%mg_initialize("mgbf_loc.nml")
-         allocate(hwork_mgbf(obj_mgbf%km,obj_mgbf%n0:obj_mgbf%nm,obj_mgbf%m0:obj_mgbf%mm))
-         hwork_mgbf=zero
       else
          if ( vvlocal ) then
             call convert_km_to_grid_units(s_ens_h_gu_x(1:nz,:),s_ens_h_gu_y(1:nz,:),nz)
@@ -4574,7 +4502,7 @@ subroutine hybens_localization_setup
    ! and triggered by lsqrtb.
    if ( regional ) then
       if ( l_mgbf_loc_h ) then
-         nval_lenz_en = obj_mgbf%km*((obj_mgbf%im-obj_mgbf%i0)*obj_mgbf%hx*2+1)*((obj_mgbf%jm-obj_mgbf%j0)*obj_mgbf%hy*2+1)*2
+         nval_lenz_en = obj_mgbf%km*((obj_mgbf%imH-obj_mgbf%i0)*obj_mgbf%hx*2+1)*((obj_mgbf%jmH-obj_mgbf%j0)*obj_mgbf%hy*2+1)
       else
          nval_lenz_en = grd_loc%nlat*grd_loc%nlon*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1)
       endif

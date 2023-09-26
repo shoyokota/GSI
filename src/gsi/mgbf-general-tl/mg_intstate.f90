@@ -133,15 +133,15 @@ contains
         procedure  :: bocoy_2d_g1,bocoy_2d_gh 
 !cltfrom mg_generation
         procedure:: upsending_all,downsending_all,weighting_all, &
-               upsending,downsending,upsending2,downsending2, &
-               weighting_helm,weighting ,adjoint,direct1, &
-               adjoint2,direct2
+               upsending,downsending,upsending_highest,downsending_highest,upsending2,downsending2, &
+               weighting_helm,weighting,weighting_highest,adjoint,direct1, &
+               adjoint2,direct2,adjoint_highest,direct_highest
 !clt mg_filtering 
          procedure ::sup_vrbeta1T,sup_vrbeta1,sup_vrbeta3T,sup_vrbeta3
 
          procedure:: mg_filtering_rad1,mg_filtering_rad2,mg_filtering_rad3,&
                  mg_filtering_lin1,mg_filtering_lin2,mg_filtering_lin3, &
-                 mg_filtering_fast
+                 mg_filtering_fast,mg_filtering_rad_highest
 !clt from mg_transfer.f90
           procedure:: composite_to_stack,stack_to_composite
 !clt from mg_entrymod
@@ -526,6 +526,9 @@ module   subroutine mg_filtering_fast(this)
     class(mg_intstate_type),target::this
 
   end subroutine mg_filtering_fast
+module subroutine mg_filtering_rad_highest(this)
+    class(mg_intstate_type),target::this
+  end subroutine mg_filtering_rad_highest
 module   subroutine sup_vrbeta1  & 
  (this,kmax,hx,hy,hz,im,jm,lm, pasp,ss, V)
 !----------------------------------------------------------------------
@@ -662,6 +665,40 @@ real(r_kind),dimension(this%km,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:t
 real(r_kind),dimension(this%km,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:this%jm+this%hy),intent(inout):: V
 
 end subroutine downsending
+ module  subroutine upsending_highest                            &
+!***********************************************************************
+!                                                                      !
+!  Adjoint interpolate and upsend:                                     !
+!       First from g1->g2 (V -> H)                                     !
+!       Then  from g2->...->gn  (H -> H)                               !
+!                                                                      !
+!***********************************************************************
+(this,V,H)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+
+real(r_kind),dimension(this%km,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(in):: V
+real(r_kind),dimension(this%km,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(out):: H
+
+end subroutine upsending_highest
+ module   subroutine downsending_highest                          &
+!***********************************************************************
+!                                                                      !
+!  Downsend, interpolate and add:                                      !
+!      First from gm->g3...->g2                                        !
+!      Then  from g2->g1                                               !
+!                                                                      !
+!***********************************************************************
+(this,H,V)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+
+real(r_kind),dimension(this%km,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:this%jm+this%hy),intent(inout):: H
+real(r_kind),dimension(this%km,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:this%jm+this%hy),intent(inout):: V
+
+end subroutine downsending_highest
  module subroutine upsending2                           &
 !***********************************************************************
 !                                                                      !
@@ -726,6 +763,20 @@ class (mg_intstate_type),target:: this
 real(r_kind),dimension(this%km,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:this%jm+this%hy),intent(inout):: V
 real(r_kind),dimension(this%km,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:this%jm+this%hy),intent(inout):: H
 end subroutine weighting
+
+ module subroutine weighting_highest                            &
+!***********************************************************************
+!                                                                      !
+!  Apply 2D differential operator to compound variable                 !
+!                                                                      !
+!***********************************************************************
+(this,H)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+
+real(r_kind),dimension(this%km,this%i0-this%hx:this%im+this%hx,this%j0-this%hy:this%jm+this%hy),intent(inout):: H
+end subroutine weighting_highest
 
 module subroutine adjoint                              &
 !***********************************************************************
@@ -798,6 +849,42 @@ real(r_kind), dimension(km_in,0:this%imL+1,0:this%jmL+1), intent(in):: W
 real(r_kind), dimension(km_in,1:this%im,1:this%jm), intent(out):: F
 end subroutine direct2
   
+module subroutine adjoint_highest                              &
+!***********************************************************************
+!                                                                      !
+!   Mapping from the high to low resolution grid                       !
+!   using linearly squared interpolations                              !
+!                         - offset version -                           !
+!                                                                      !
+!***********************************************************************
+(this,F,W,km_in,g)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+integer(i_kind),intent(in):: g
+integer(i_kind),intent(in):: km_in
+real(r_kind), dimension(km_in,this%i0:this%im0(g),this%j0:this%jm0(g)), intent(in):: F
+real(r_kind), dimension(km_in,this%i0-2:this%im0(g+1)+2,this%j0-2:this%jm0(g+1)+2), intent(out):: W
+end subroutine adjoint_highest
+
+module subroutine direct_highest                              &
+!***********************************************************************
+!                                                                      !
+!   Mapping from the low to high resolution grid                       !
+!   using linearly squared interpolations                              !
+!                         - offset version -                           !
+!                                                                      !
+!***********************************************************************
+(this,W,F,km_in,g)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+integer(i_kind),intent(in):: g
+integer(i_kind),intent(in):: km_in
+real(r_kind), dimension(km_in,this%i0-2:this%im0(g+1)+2,this%j0-2:this%jm0(g+1)+2), intent(in):: W
+real(r_kind), dimension(km_in,this%i0:this%im0(g),this%j0:this%jm0(g)), intent(out):: F
+end subroutine direct_highest
+
                module         subroutine mg_initialize(this,inputfilename,obj_parameter)
 class (mg_intstate_type):: this
 character*(*),optional,intent(in) :: inputfilename
@@ -1033,42 +1120,29 @@ real(r_kind):: gen_fac
 
 
         if(.not.this%mgbf_line) then
-           call this%cholaspect(1,this%lm,this%pasp1)
-           call this%cholaspect(this%i0,this%im,this%j0,this%jm,this%pasp2)
-           call this%cholaspect(this%i0,this%im,this%j0,this%jm,1,this%lm,this%pasp3)
-
-
-           call this%getlinesum(this%hx,this%i0,this%im,this%paspx,this%ssx)
-           call this%getlinesum(this%hy,this%j0,this%jm,this%paspy,this%ssy)
-           call this%getlinesum(this%hz,1,this%lm,this%pasp1,this%ss1)
-           call this%getlinesum(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%pasp2,this%ss2)
-           call this%getlinesum(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%hz,1,this%lm,this%pasp3,this%ss3)
-           if(.not.this%l_filt) then
-              this%VALL(1,this%im/2,1)=1.
-              call this%rbetaT(this%hx,this%i0,this%im,this%paspx,this%ssx,this%VALL(1,:,1))
-              call this%rbeta(this%hx,this%i0,this%im,this%paspx(1,1,:),this%ssx,this%VALL(1,:,1))
-              this%ssx=this%ssx/sqrt(this%VALL(1,this%im/2,1))
-              this%VALL(1,:,1)=0.
-              this%VALL(1,1,this%jm/2)=1.
-              call this%rbetaT(this%hy,this%j0,this%jm,this%paspy,this%ssy,this%VALL(1,1,:))
-              call this%rbeta(this%hy,this%j0,this%jm,this%paspy(1,1,:),this%ssy,this%VALL(1,1,:))
-              this%ssy=this%ssy/sqrt(this%VALL(1,1,this%jm/2))
-              this%VALL(1,1,:)=0.
-              this%VALL(this%lm/2,1,1)=1.
-              call this%rbetaT(this%hz,1,this%lm,this%pasp1,this%ss1,this%VALL(:,1,1))
-              call this%rbeta(this%hz,1,this%lm,this%pasp1(1,1,:),this%ss1,this%VALL(:,1,1))
-              this%ss1=this%ss1/sqrt(this%VALL(this%lm/2,1,1))
-              this%VALL(:,1,1)=0.
-              this%VALL(1,this%im/2,this%jm/2)=1.
-              call this%rbetaT(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%pasp2,this%ss2,this%VALL(1,:,:))
-              call this%rbeta(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%pasp2,this%ss2,this%VALL(1,:,:))
-              this%ss2=this%ss2/sqrt(this%VALL(1,this%im/2,this%jm/2))
-              this%VALL(1,:,:)=0.
-              this%VALL(this%lm/2,this%im/2,this%jm/2)=1.
-              call this%rbetaT(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%hz,1,this%lm,this%pasp3,this%ss3,this%VALL)
-              call this%rbeta(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%hz,1,this%lm,this%pasp3,this%ss3,this%VALL)
-              this%ss3=this%ss3/sqrt(this%VALL(this%lm/2,this%im/2,this%jm/2))
-              this%VALL(:,:,:)=0.
+           if(this%l_filt) then
+              call this%cholaspect(1,this%lm,this%pasp1)
+              call this%cholaspect(this%i0,this%im,this%j0,this%jm,this%pasp2)
+              call this%cholaspect(this%i0,this%im,this%j0,this%jm,1,this%lm,this%pasp3)
+              call this%getlinesum(this%hx,this%i0,this%im,this%paspx,this%ssx)
+              call this%getlinesum(this%hy,this%j0,this%jm,this%paspy,this%ssy)
+              call this%getlinesum(this%hz,1,this%lm,this%pasp1,this%ss1)
+              call this%getlinesum(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%pasp2,this%ss2)
+              call this%getlinesum(this%hx,this%i0,this%im,this%hy,this%j0,this%jm,this%hz,1,this%lm,this%pasp3,this%ss3)
+           else
+              call this%cholaspect(this%i0,this%imH,this%j0,this%jmH,&
+                   &this%pasp2(:,:,this%i0:this%imH,this%j0:this%jmH))
+              call this%getlinesum(this%hx,this%i0,this%imH,this%hy,this%j0,this%jmH,&
+                   &this%pasp2(:,:,this%i0:this%imH,this%j0:this%jmH),this%ss2(this%i0:this%imH,this%j0:this%jmH))
+              this%VALL(1,this%imH/2,this%jmH/2)=1.
+              call this%rbetaT(this%hx,this%i0,this%imH,this%hy,this%j0,this%jmH,&
+                   &this%pasp2(:,:,this%i0:this%imH,this%j0:this%jmH),this%ss2(this%i0:this%imH,this%j0:this%jmH),&
+                   &this%VALL(1,this%i0-this%hx:this%imH+this%hx,this%j0-this%hy:this%jmH+this%hy))
+              call this%rbeta(this%hx,this%i0,this%imH,this%hy,this%j0,this%jmH,&
+                   &this%pasp2(:,:,this%i0:this%imH,this%j0:this%jmH),this%ss2(this%i0:this%imH,this%j0:this%jmH),&
+                   &this%VALL(1,this%i0-this%hx:this%imH+this%hx,this%j0-this%hy:this%jmH+this%hy))
+              this%ss2=this%ss2/sqrt(this%VALL(1,this%imH/2,this%jmH/2))
+              this%VALL(1,this%i0-this%hx:this%imH+this%hx,this%j0-this%hy:this%jmH+this%hy)=0.
            end if
         end if
 !-----------------------------------------------------------------------
