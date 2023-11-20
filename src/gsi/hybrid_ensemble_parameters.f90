@@ -136,7 +136,7 @@ module hybrid_ensemble_parameters
 !      r_ensloccov4tim: factor multiplying to cross-temporal covariance
 !      r_ensloccov4var: factor multiplying to cross-variable covariance
 !      r_ensloccov4scl: factor multiplying to cross-scale covariance
-!      l_mgbf_loc_h: if true, multi-grid beta filter is used for horizontal localization instead of recursive filter
+!      l_mgbf_loc: if true, multi-grid beta filter is used for localization instead of recursive filter
 !=====================================================================================================
 !
 !
@@ -321,7 +321,7 @@ module hybrid_ensemble_parameters
   public :: alphacvarsclgrpmat
   public :: l_timloc_opt
   public :: r_ensloccov4tim,r_ensloccov4var,r_ensloccov4scl
-  public :: l_mgbf_loc_h
+  public :: l_mgbf_loc
   public :: idaen3d,idaen2d
   public :: ens_fast_read
   public :: l_both_fv3sar_gfs_ens 
@@ -329,7 +329,7 @@ module hybrid_ensemble_parameters
 
   logical l_hyb_ens,uv_hyb_ens,q_hyb_ens,oz_univ_static,sst_staticB
   logical l_timloc_opt
-  logical l_mgbf_loc_h
+  logical l_mgbf_loc
   logical aniso_a_en
   logical full_ensemble,pwgtflg
   logical generate_ens
@@ -434,7 +434,7 @@ subroutine init_hybrid_ensemble_parameters
 
   l_hyb_ens=.false.
   l_timloc_opt=.false.
-  l_mgbf_loc_h=.false.
+  l_mgbf_loc=.false.
   full_ensemble=.false.
   pwgtflg=.false.
   uv_hyb_ens=.false.

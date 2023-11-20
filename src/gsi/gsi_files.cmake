@@ -16,6 +16,28 @@ class_wrf_binary_interface.f90
 class_wrf_netcdf_interface.f90
 class_wrwrfmassa.f90
 class_wrwrfnmma.f90
+mgbf-general-tl/jp_pkind.f90
+mgbf-general-tl/jp_pkind2.f90
+mgbf-general-tl/jp_pietc.f90
+mgbf-general-tl/jp_pietc_s.f90
+mgbf-general-tl/jp_pmat.f90
+mgbf-general-tl/jp_pmat4.f90
+mgbf-general-tl/jp_pbfil.f90
+mgbf-general-tl/jp_pbfil2.f90
+mgbf-general-tl/jp_pbfil3.f90
+mgbf-general-tl/mg_mppstuff.f90
+mgbf-general-tl/mg_domain.f90
+mgbf-general-tl/mg_domain_loc.f90
+mgbf-general-tl/mg_parameter.f90
+mgbf-general-tl/mg_bocos.f90
+mgbf-general-tl/mg_transfer.f90
+mgbf-general-tl/mg_generations.f90
+mgbf-general-tl/mg_interpolate.f90
+mgbf-general-tl/mg_filtering.f90
+mgbf-general-tl/mg_timers.f90
+mgbf-general-tl/mg_entrymod.f90
+mgbf-general-tl/mg_intstate.f90
+mgbf-general-tl/mg_input.f90
 )
 
 # Stubs for Global interface
