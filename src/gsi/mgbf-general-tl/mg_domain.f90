@@ -57,14 +57,14 @@ include  "type_parameter_point2this.inc"
 !-----------------------------------------------------------------------
 !TEST
 !      if(mype==0) then
-!        print *,'FROM INIT_DOMAIN: nxm,mym=',nxm,mym
+!        print *,'FROM INIT_DOMAIN: nxm,nym=',nxm,nym
 !      endif
 !TEST
 
       Flwest(1)=nx.eq.1
       Fleast(1)=nx.eq.nxm
       Flsouth(1)=my.eq.1
-      Flnorth(1)=my.eq.mym
+      Flnorth(1)=my.eq.nym
 
  if(l_hgen) then 
 
@@ -113,7 +113,7 @@ include  "type_parameter_point2this.inc"
       itarg_sA=mype-nxm
     endif
 
-    if(my==mym) then
+    if(my==nym) then
       itarg_nA=-1
     else
       itarg_nA=mype+nxm
@@ -122,7 +122,7 @@ include  "type_parameter_point2this.inc"
       lwestA=nx.eq.1
       leastA=nx.eq.nxm
       lsouthA=my.eq.1
-      lnorthA=my.eq.mym
+      lnorthA=my.eq.nym
 
    
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

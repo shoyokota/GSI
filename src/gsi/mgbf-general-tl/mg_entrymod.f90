@@ -53,13 +53,16 @@ class(mg_parameter_type),optional,intent(in)::obj_parameter
 !**** Initialize MPI
 !****
 
-      if(this%l_filt) call this%init_mg_MPI
+      if(this%nxm*this%nym>1) call this%init_mg_MPI
 
 !***
 !*** Initialize integration domain
 !***
 
       call this%init_mg_domain
+      if(this%l_loc) then
+        call this%init_domain_loc
+      endif
 
 
 !---------------------------------------------------------------------------
@@ -73,38 +76,25 @@ class(mg_parameter_type),optional,intent(in)::obj_parameter
 !*** depending on specific application
 !***
 
-    if(this%l_filt) then
-      this%km2 = this%km2_f
-      this%km3 = this%km3_f
-    else 
-      this%km2 = this%km2_e
-      this%km3 = this%km3_e
-    endif
-       write(6,*)'thinkdeb33 ',this%km2,this%km3,this%lm
-!cltdebug      this%km2=0;this%km3=0  !cltthinktodo this is not defined in the test case
-                              !using
-                              !/scratch1/NCEPDEV/da/Miodrag.Rancic/Mars_Jul05_2022/RUN/mgbf.nml_offset  
-      this%km = this%km2+this%lm*this%km3
 
 !***
 !*** Allocate variables, define weights, prepare mapping 
 !*** between analysis and filter grid
 !***
 
-      call this%allocate_mg_intstate  !(this%km)  !cltthink
+      call this%allocate_mg_intstate
 
       call this%def_offset_coef
 
       call this%def_mg_weights
 
-      if( this%mgbf_line) then
+      if(this%mgbf_line) then
          call this%init_mg_line
       endif
 
       call this%lsqr_mg_coef 
 
-!for now        call lwq_vertical_coef(lm ,lmf,cvf1,cvf2,cvf3,cvf4,lref)
-!for now        call lwq_vertical_coef(lmf,lmh,cvh1,cvh2,cvh3,cvh4,lref_h)
+      call this%lwq_vertical_coef(this%lm_a,this%lm,this%cvf1,this%cvf2,this%cvf3,this%cvf4,this%lref)
 
 !***
 !*** Just for testing of standalone version. In GSI WORKA will be given
@@ -157,7 +147,7 @@ mm=this%mm
 lm=this%lm
 endif
 
-     if(this%l_filt) call this%barrierMPI
+     if(this%nxm*this%nym>1) call this%barrierMPI
 
 
           call this%deallocate_mg_intstate          

@@ -54,13 +54,13 @@ real(i_kind):: m,n
 use kinds, only: r_kind,i_kind
 implicit none
 type(mg_intstate_type)::obj_mgbf
-real(r_kind),dimension(1:obj_mgbf%nm,1:obj_mgbf%LM),intent(in):: V
+real(r_kind),dimension(1:obj_mgbf%nm,1:obj_mgbf%lm_a),intent(in):: V
 integer(i_kind):: my0
 real(i_kind):: n,l
 !-----------------------------------------------------------------------
 
 if(my==my0) then
-    do L=1,obj_mgbf%Lm
+    do L=1,obj_mgbf%lm_a
       write(500+nx,'(f9.3)') (V(n,L),n=1,obj_mgbf%nm)
     enddo
 endif

@@ -12,6 +12,7 @@ use kinds, only: r_kind,i_kind
 !clt use mg_mppstuff, only: finishMPI,mype
 !clt use mg_filtering, only: mg_filtering_procedure
 !clt use mg_transfer, only: anal_to_filt_all,filt_to_anal_all 
+!clt use mg_transfer, only: anal_to_filt_all2,filt_to_anal_all2
 !clt use mg_parameter, only: mgbf_proc
 use  mg_intstate
 use mg_timers
@@ -40,17 +41,17 @@ if(1.gt.0) then
           call obj_mgbf%mg_initialize("mgbeta.nml")
 
                                                      call etim(    init_tim)
-!clt          write(6,*)"worka dim ",obj_mgbf%km,obj_mgbf%n0,obj_mgbf%nm,obj_mgbf%m0,obj_mgbf%mm   
-          allocate(WORKA(obj_mgbf%km,obj_mgbf%n0:obj_mgbf%nm,obj_mgbf%m0:obj_mgbf%mm))                               ; WORKA=0.
+!clt          write(6,*)"worka dim ",obj_mgbf%km,1,obj_mgbf%nm,1,obj_mgbf%mm   
+          allocate(WORKA(obj_mgbf%km_a_all,1:obj_mgbf%nm,1:obj_mgbf%mm))                               ; WORKA=0.
 if(obj_mgbf%ldelta) then
 
  allocate(PA(1:obj_mgbf%nm,1:obj_mgbf%mm))
 
     PA = 0.
-    call input_spec1_2d(obj_mgbf, PA,obj_mgbf%nxm/2,obj_mgbf%mym/2,'md')
+    call input_spec1_2d(obj_mgbf, PA,obj_mgbf%nxm/2,obj_mgbf%nym/2,'md')
 
 !    WORKA(3*lm+1:4*lm,:,:)=0.
-    WORKA(3*obj_mgbf%lm+obj_mgbf%lm/2,:,:)=PA(:,:)
+    WORKA(3*obj_mgbf%lm_a+obj_mgbf%lm_a/2,:,:)=PA(:,:)
 
 
 deallocate(PA)
@@ -59,10 +60,11 @@ endif
 !***
 !*** From the analysis to first generation of filter grid
 !***
-                                                   call btim(    an2filt_tim)
-
+       if(this%l_new_map)then
+          call obj_mgbf%anal_to_filt_all2(WORKA)
+       else
           call obj_mgbf%anal_to_filt_all(WORKA)
-                                                   call etim(    an2filt_tim)
+       end if
 
 
 !\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -82,13 +84,14 @@ endif
 !======================================================================
 
 !***
-!*** From first generation of filter grid to analysis grid (x-directoin)
+!*** From first generation of filter grid to analysis grid
 !***
 
-                                                   call btim(   filt2an_tim)
+       if(this%l_new_map)then
+          call obj_mgbf%filt_to_anal_all2(WORKA)
+       else
           call obj_mgbf%filt_to_anal_all(WORKA)
-
-                                                   call etim(   filt2an_tim)
+       end if
         mype=obj_mgbf%mype
         unitnum=25+mype
         write(6,*)WORKA(1,1,1)
@@ -138,17 +141,17 @@ endif !1 gt 2
           call MPI_BARRIER(MPI_COMM_WORLD,ierr)
           call obj2_mgbf%mg_initialize("mgbeta.nml")
 
-          write(6,*)"worka dim2 ",obj2_mgbf%km,obj2_mgbf%n0,obj2_mgbf%nm,obj2_mgbf%m0,obj2_mgbf%mm   
-          allocate(WORKA(obj2_mgbf%km,obj2_mgbf%n0:obj2_mgbf%nm,obj2_mgbf%m0:obj2_mgbf%mm))                               ; WORKA=0.
+          write(6,*)"worka dim2 ",obj2_mgbf%km,1,obj2_mgbf%nm,1,obj2_mgbf%mm   
+          allocate(WORKA(obj2_mgbf%km,1:obj2_mgbf%nm,1:obj2_mgbf%mm))                               ; WORKA=0.
 if(obj2_mgbf%ldelta) then
 
  allocate(PA(1:obj2_mgbf%nm,1:obj2_mgbf%mm))
 
     PA = 0.
-    call input_spec1_2d(obj2_mgbf, PA,obj2_mgbf%nxm/2,obj2_mgbf%mym/2,'md')
+    call input_spec1_2d(obj2_mgbf, PA,obj2_mgbf%nxm/2,obj2_mgbf%nym/2,'md')
 
 !    WORKA(3*lm+1:4*lm,:,:)=0.
-    WORKA(3*obj2_mgbf%lm+obj2_mgbf%lm/2,:,:)=PA(:,:)
+    WORKA(3*obj2_mgbf%lm_a+obj2_mgbf%lm_a/2,:,:)=PA(:,:)
 
 
 deallocate(PA)
@@ -157,10 +160,11 @@ endif
 !***
 !*** From the analysis to first generation of filter grid
 !***
-!                                                   call btim(    an2filt_tim)
-
+       if(this%l_new_map)then
+          call obj2_mgbf%anal_to_filt_all2(WORKA)
+       else
           call obj2_mgbf%anal_to_filt_all(WORKA)
-                                                   !call etim(    an2filt_tim)
+       end if
 
 
 !\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -183,10 +187,11 @@ endif
 !*** From first generation of filter grid to analysis grid (x-directoin)
 !***
 
-!                                                   call btim(   filt2an_tim)
+       if(this%l_new_map)then
+          call obj2_mgbf%filt_to_anal_all2(WORKA)
+       else
           call obj2_mgbf%filt_to_anal_all(WORKA)
-
-!                                                   call etim(   filt2an_tim)
+       end if
         mype=obj2_mgbf%mype
         unitnum=25+mype
         write(6,*)WORKA(1,1,1)

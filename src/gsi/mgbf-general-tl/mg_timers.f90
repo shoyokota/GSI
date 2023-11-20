@@ -33,9 +33,11 @@
   type(timer),save,public ::    an2filt_tim
   type(timer),save,public ::    filt2an_tim
   type(timer),save,public ::    weight_tim
-  type(timer),save,public ::    bfiltT_tim
+  type(timer),save,public ::    hfiltT_tim
+  type(timer),save,public ::    vfiltT_tim
   type(timer),save,public ::      vadv1_tim
-  type(timer),save,public ::      bfilt_tim
+  type(timer),save,public ::      hfilt_tim
+  type(timer),save,public ::      vfilt_tim
   type(timer),save,public ::       adv2_tim
   type(timer),save,public ::       vtoa_tim
   type(timer),save,public ::    dnsend_tim
@@ -52,6 +54,7 @@
   type(timer),save,public ::       arrn_tim
   type(timer),save,public ::      aintp_tim
   type(timer),save,public ::       intp_tim
+  type(timer),save,public ::      bocoT_tim
   type(timer),save,public ::       boco_tim
 
   integer, parameter, public :: print_clock = 1,                        &
@@ -124,8 +127,8 @@ contains
                                        upsend_tim%time_clock,           &
                                        dnsend_tim%time_clock,           &
                                        weight_tim%time_clock,           &
-                                       bfiltT_tim%time_clock,           &
-                                       bfilt_tim%time_clock,            &
+                                       hfiltT_tim%time_clock,           &
+                                       hfilt_tim%time_clock,            &
                                        filt2an_tim%time_clock,          &
                                        aintp_tim%time_clock,            &
                                        intp_tim%time_clock,             &
@@ -133,14 +136,18 @@ contains
                                        output_tim%time_clock,           &
                                        total_tim%time_clock
     else if ( print_type == print_cpu ) then
-    write(buffer,"(I6,10(',',F10.4))") mype,                            &
+    write(buffer,"(I6,14(',',F10.4))") mype,                            &
                                        init_tim%time_cpu,               &
                                        an2filt_tim%time_cpu,            &
+                                       vfiltT_tim%time_cpu,             &
                                        upsend_tim%time_cpu,             &
-                                       bfiltT_tim%time_cpu,             &
+                                       hfiltT_tim%time_cpu,             &
+                                       bocoT_tim%time_cpu,              &
                                        weight_tim%time_cpu,             &
-                                       bfilt_tim%time_cpu,              &
+                                       boco_tim%time_cpu,               &
+                                       hfilt_tim%time_cpu,              &
                                        dnsend_tim%time_cpu,             &
+                                       vfilt_tim%time_cpu,              &
                                        filt2an_tim%time_cpu,            &
                                        output_tim%time_cpu,             &
                                        total_tim%time_cpu
@@ -149,14 +156,18 @@ contains
     bufsize = LEN(TRIM(buffer)) + 1
     buffer(bufsize:bufsize) = NEW_LINE(' ')
 
-    write(header,"(A6,10(',',A10))") "mype",                            &
+    write(header,"(A6,14(',',A10))") "mype",                            &
                                      "init",                            &
                                      "an2filt",                         &
+                                     "vfiltT",                          &
                                      "upsend",                          &
-                                     "bfiltT",                          &
+                                     "hfiltT",                          &
+                                     "bocoT" ,                          &
                                      "weight",                          &
-                                     "bfilt",                           &
+                                     "boco",                            &
+                                     "hfilt",                           &
                                      "dnsend",                          &
+                                     "vfilt",                           &
                                      "filt2an",                         &
                                      "output",                          &
                                      "total"

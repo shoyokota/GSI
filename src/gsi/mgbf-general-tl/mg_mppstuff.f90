@@ -53,7 +53,6 @@ include  "type_parameter_point2this.inc"
 
       ! Create a new communicator with MPI_Comm_split
       color=1  ! just create an communicator now for the whole processes
-      write(6,*)'thinkdebmype is ',mype
       call MPI_Comm_split(MPI_COMM_WORLD, color, mype, mpi_comm_comp, ierr)
       call MPI_COMM_SIZE(mpi_comm_comp,npes,ierr)
 
