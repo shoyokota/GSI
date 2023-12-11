@@ -139,6 +139,8 @@ module mpimod
   integer(i_kind) :: nype=21     ! 52x21=1092=ny for RRFS-CONUS
 !  integer(i_kind) :: nxpe=70     ! 26x70=1820=nx for RRFS-CONUS
 !  integer(i_kind) :: nype=42     ! 26x42=1092=ny for RRFS-CONUS
+!  integer(i_kind) :: nxpe=79     ! 50x79=3950=nx for RRFS-NA
+!  integer(i_kind) :: nype=18     ! 150x18=2700=ny for RRFS-NA
 
 
 ! communication arrays...set up in init_mpi_vars  (almost none left)

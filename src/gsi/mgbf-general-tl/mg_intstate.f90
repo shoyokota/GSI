@@ -961,7 +961,6 @@ end interface
 ! Allocate internal state variables                                    !
 !                                                                      !
 !***********************************************************************
-   !import mg_intstate_type
 implicit none
 class(mg_intstate_type),target::this
 
@@ -1115,7 +1114,6 @@ allocate(this%cvh4(1:this%lm))                                   ; this%cvh4=0.
 !***********************************************************************
 !                                                                      !
 ! Define weights and scales                                            !
-   !import mg_intstate_type
 !                                                                      !
 implicit none
 class (mg_intstate_type),target::this
@@ -1251,7 +1249,6 @@ real(r_kind):: gen_fac
 
 !&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
                         subroutine init_mg_line(this)
-   !import mg_intstate_type
 implicit none
 class(mg_intstate_type),target::this
 integer(i_kind):: i,j,L,icol
