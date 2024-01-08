@@ -190,6 +190,9 @@ module hybrid_ensemble_isotropic
 ! For MGBF
   type (mg_intstate_type), allocatable, dimension(:) :: obj_mgbf
   real(r_kind), allocatable, dimension(:,:,:) :: hwork_mgbf
+integer(i_kind),save :: timecount=0
+integer(i_kind),save :: timerate,timemax,timer(0:19),timei
+real(r_kind),save :: timetotal(1:19)
 
 contains
 
@@ -3714,6 +3717,7 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
   use constants, only: zero
+use mpimod, only: mype
 
   implicit none
 
@@ -3735,6 +3739,16 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
      write(6,*)'bkgcov_a_en_new_factorization: trouble getting pointer to ensemble CV'
      call stop2(999)
   endif
+if(mype==0) then
+if(timecount==0) then
+call system_clock(timer(0),timerate,timemax)
+timetotal(:)=zero
+else
+call system_clock(timer(0))
+endif
+timecount=timecount+1
+timei=1
+endif
 
 ! Apply vertical smoother on each ensemble member
   if(regional.and.l_mgbf_loc.and.ig==1) then
@@ -3785,22 +3799,52 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
         a_en_work(is:ie)=a_en(k)%values(1:a_en(k)%ndim)
      enddo
   endif
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'RF_z(ad)  :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
 
 ! Apply horizontal smoother for number of horizontal scales
   if(regional) then
      if(l_mgbf_loc.and.ig==1) then
         call obj_mgbf(1)%mg_filtering_procedure(obj_mgbf(1)%mgbf_proc,0)
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'MGBF      :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
      else
 ! Convert from subdomain to full horizontal field distributed among processors
         call general_sub2grid(grd_loc,a_en_work,hwork)
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'sub2grid  :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
         iadvance=1 ; iback=2
         call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
         call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
         iadvance=2 ; iback=1
         call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
         call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'RF        :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
 ! Put back onto subdomains
         call general_grid2sub(grd_loc,hwork,a_en_work)
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'grid2sub  :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
      endif
   else
 ! Convert from subdomain to full horizontal field distributed among processors
@@ -3854,6 +3898,12 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
      enddo
      deallocate(a_en_work)
   endif
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'RF_z(tl)  :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
 
   return
 end subroutine bkgcov_a_en_new_factorization
@@ -3890,6 +3940,7 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
   use general_sub2grid_mod, only: general_grid2sub
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
+use mpimod, only: mype
 
   implicit none
 
@@ -3915,6 +3966,11 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
      write(6,*)'ckgcov_a_en_new_factorization: trouble getting pointer to ensemble CV'
      call stop2(999)
   endif
+if(mype==0) then
+call system_clock(timer(15))
+timecount=timecount+1
+timei=16
+endif
 
   if(.not.regional.or..not.l_mgbf_loc) then
      allocate(a_en_work(n_ens*a_en(1)%ndim),stat=istatus)
@@ -3942,6 +3998,12 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
               enddo
            enddo
            call obj_mgbf(ig)%mg_filtering_procedure(obj_mgbf(ig)%mgbf_proc,1)
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'MGBF(tl)  :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
         else
 ! Make a copy of input variable z to hwork
            hwork=z
@@ -3949,7 +4011,19 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
            call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
            call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
 ! Put back onto subdomains
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'RF(tl)    :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
            call general_grid2sub(grd_loc,hwork,a_en_work)
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'grid2sub  :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
         endif
      else
 #ifdef LATER
@@ -4008,6 +4082,12 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
      enddo
      deallocate(a_en_work)
   endif
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'RF_z(tl)  :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
 
   return
 end subroutine ckgcov_a_en_new_factorization
@@ -4049,6 +4129,7 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
   use general_sub2grid_mod, only: general_sub2grid
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
+use mpimod, only: mype
 
   implicit none
 
@@ -4074,6 +4155,16 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
      write(6,*)'ckgcov_a_en_new_factorization_ad: trouble getting pointer to ensemble CV'
      call stop2(999)
   endif
+if(mype==0) then
+if(timecount==0) then
+call system_clock(timer(10),timerate,timemax)
+timetotal(:)=zero
+else
+call system_clock(timer(10))
+endif
+timecount=timecount+1
+timei=11
+endif
 
 ! Apply vertical smoother on each ensemble member
   if(regional.and.l_mgbf_loc) then
@@ -4125,6 +4216,12 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
         a_en_work(is:ie)=a_en(k)%values(1:a_en(k)%ndim)
      enddo
   endif
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'RF_z(ad)  :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
 
   if(grd_loc%kend_loc+1-grd_loc%kbegin_loc==0) then
 !     no work to be done on this processor, but z still has allocated space, since
@@ -4144,13 +4241,31 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
                  enddo
               enddo
            enddo
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'MGBF(ad)  :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
         else
 ! Convert from subdomain to full horizontal field distributed among processors
            call general_sub2grid(grd_loc,a_en_work,hwork)
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'sub2grid  :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
            iadvance=1 ; iback=2
            call new_factorization_rf_x(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
            call new_factorization_rf_y(hwork,iadvance,iback,grd_loc%kend_loc+1-grd_loc%kbegin_loc,ig)
            z=hwork
+if(mype==0) then
+call system_clock(timer(timei))
+timetotal(timei)=timetotal(timei)+real(timer(timei)-timer(timei-1))/timerate
+write(6,*) 'RF(ad)    :',timecount,real(timer(timei)-timer(timei-1))/timerate,timetotal(timei)
+timei=timei+1
+endif
         endif
      else
 ! Convert from subdomain to full horizontal field distributed among processors
