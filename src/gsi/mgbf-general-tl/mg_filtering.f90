@@ -17,7 +17,7 @@ contains
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 !&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-module subroutine mg_filtering_procedure(this,mg_filt) 
+module subroutine mg_filtering_procedure(this,mg_filt,mg_filt_flag) 
 !***********************************************************************
 !                                                                      !
 ! Driver for Multigrid filtering procedures with Helmholtz operator    !
@@ -37,6 +37,7 @@ module subroutine mg_filtering_procedure(this,mg_filt)
 implicit none 
 class(mg_intstate_type),target::this
 integer(i_kind),intent(in):: mg_filt
+integer(i_kind),intent(in):: mg_filt_flag
 include "type_parameter_locpointer.inc"
 include "type_intstat_locpointer.inc"
 include "type_parameter_point2this.inc"
@@ -57,11 +58,11 @@ if(this%nxm*this%nym>1) then
    case(6)
       call this%mg_filtering_lin3
    case(11)
-      call this%mg_filtering_rad2_ens
+      call this%mg_filtering_rad2_ens(mg_filt_flag)
    case(12)
-      call this%mg_filtering_lin2_ens
+      call this%mg_filtering_lin2_ens(mg_filt_flag)
    case(13)
-      call this%mg_filtering_fast_ens
+      call this%mg_filtering_fast_ens(mg_filt_flag)
    case default
       call this%mg_filtering_fast          
    end select
@@ -840,7 +841,7 @@ deallocate(JCOL)
 endsubroutine mg_filtering_lin3
 
 !&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-module subroutine mg_filtering_rad2_ens(this)
+module subroutine mg_filtering_rad2_ens(this,mg_filt_flag)
 !***********************************************************************
 !                                                                      !
 ! Multigrid filtering procedure 11 for ensemble                        !
@@ -852,6 +853,7 @@ module subroutine mg_filtering_rad2_ens(this)
 !***********************************************************************
 implicit none
 class (mg_intstate_type),target::this
+integer(i_kind),intent(in):: mg_filt_flag
 !real(r_kind), allocatable, dimension(:,:,:,:):: VM3D
 !real(r_kind), allocatable, dimension(:,:,:,:):: HM3D
 integer(i_kind) L,i,j
@@ -863,10 +865,14 @@ include "type_intstat_point2this.inc"
 !allocate(VM3D(km3_all,1-hx:im+hx,1-hy:jm+hy,lm))                  ; VM3D=0.
 !allocate(HM3D(km3_all,1-hx:im+hx,1-hy:jm+hy,lm))                  ; HM3D=0.
 
+if(mg_filt_flag==1) then
+                                                 call btim(upsend_tim)
+  call this%upsending_ens_nearest(VALL,HALL,km_all)
+                                                 call etim(upsend_tim)
+else
 !***
 !*** Adjoint of beta filter in vertical direction
 !***
-
   if(l_loc_vertical) then
                                                  call btim(vfiltT_tim)
 !     call this%S2C_ens(VALL,VM3D,1-hx,im+hx,1-hy,jm+hy,lm,km,km_all)
@@ -903,12 +909,19 @@ include "type_intstat_point2this.inc"
   endif
      call this%bocoT_2d(HALL,km_all,im,jm,hx,hy,Fimax,Fjmax,2,gm)
                                                  call etim(bocoT_tim)
+endif
 !***
 !*** Apply (a-b\nabla^2)
 !***
                                                  call btim(weight_tim)
      call this%weighting_ens(VALL,HALL,km_all)
                                                  call etim(weight_tim)
+
+if(mg_filt_flag==-1) then
+                                                 call btim(dnsend_tim)
+  call this%downsending_ens_nearest(HALL,VALL,km_all)
+                                                 call etim(dnsend_tim)
+else
 !***
 !*** Apply Beta filter at all generations
 !***
@@ -949,6 +962,7 @@ include "type_intstat_point2this.inc"
      call this%sup_vrbeta1_new(km3_all,hx,hy,hz,im,jm,lm, pasp1,ss1,VALL)
                                                  call etim(vfilt_tim)
   endif
+endif
 
 !deallocate(VM3D)
 !deallocate(HM3D)
@@ -956,7 +970,7 @@ include "type_intstat_point2this.inc"
 endsubroutine mg_filtering_rad2_ens
 
 !&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-module subroutine mg_filtering_lin2_ens(this)
+module subroutine mg_filtering_lin2_ens(this,mg_filt_flag)
 !***********************************************************************
 !                                                                      !
 ! Multigrid filtering procedure                                        !
@@ -968,6 +982,7 @@ module subroutine mg_filtering_lin2_ens(this)
 !***********************************************************************
 implicit none
 class (mg_intstate_type),target::this
+integer(i_kind),intent(in):: mg_filt_flag
 !real(r_kind), allocatable, dimension(:,:,:,:):: VM3D
 !real(r_kind), allocatable, dimension(:,:,:,:):: HM3D
 integer(i_kind) L,i,j
@@ -981,6 +996,11 @@ include "type_intstat_point2this.inc"
 !allocate(VM3D(km3_all,1-hx:im+hx,1-hy:jm+hy,lm))                  ; VM3D=0.
 !allocate(HM3D(km3_all,1-hx:im+hx,1-hy:jm+hy,lm))                  ; HM3D=0.
 
+if(mg_filt_flag==1) then
+                                                 call btim(upsend_tim)
+  call this%upsending_ens_nearest(VALL,HALL,km_all)
+                                                 call etim(upsend_tim)
+else
 !***
 !*** Adjoint of beta filter in vertical direction
 !***
@@ -1028,12 +1048,19 @@ include "type_intstat_point2this.inc"
         call this%bocoT_2d(HALL,km_all,im,jm,hx,hy,Fimax,Fjmax,2,gm)
                                                  call etim(bocoT_tim)
   enddo
+endif
 !***
 !*** Apply (a-b\nabla^2)
 !***
                                                  call btim(weight_tim)
      call this%weighting_ens(VALL,HALL,km_all)
                                                  call etim(weight_tim)
+
+if(mg_filt_flag==-1) then
+                                                 call btim(dnsend_tim)
+  call this%downsending_ens_nearest(HALL,VALL,km_all)
+                                                 call etim(dnsend_tim)
+else
 !***
 !*** Apply Beta filter at all generations
 !***
@@ -1081,6 +1108,7 @@ include "type_intstat_point2this.inc"
      call this%sup_vrbeta1_new(km3_all,hx,hy,hz,im,jm,lm, pasp1,ss1,VALL)
                                                  call etim(vfilt_tim)
   endif
+endif
 
 !deallocate(VM3D)
 !deallocate(HM3D)
@@ -1088,7 +1116,7 @@ include "type_intstat_point2this.inc"
 endsubroutine mg_filtering_lin2_ens
 
 !&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-module subroutine mg_filtering_fast_ens(this)
+module subroutine mg_filtering_fast_ens(this,mg_filt_flag)
 !***********************************************************************
 !                                                                      !
 ! Fast multigrid filtering procedure:                                  !
@@ -1100,6 +1128,7 @@ module subroutine mg_filtering_fast_ens(this)
 !***********************************************************************
 implicit none
 class (mg_intstate_type),target::this
+integer(i_kind),intent(in):: mg_filt_flag
 !real(r_kind), allocatable, dimension(:,:,:,:):: VM3D
 !real(r_kind), allocatable, dimension(:,:,:,:):: HM3D
 integer(i_kind) L,i,j
@@ -1111,6 +1140,11 @@ include "type_intstat_point2this.inc"
 !allocate(VM3D(km3_all,1-hx:im+hx,1-hy:jm+hy,lm))              ; VM3D=0.
 !allocate(HM3D(km3_all,1-hx:im+hx,1-hy:jm+hy,lm))              ; HM3D=0.
 
+if(mg_filt_flag==1) then
+                                                 call btim(upsend_tim)
+  call this%upsending_ens_nearest(VALL,HALL,km_all)
+                                                 call etim(upsend_tim)
+else
 !***
 !*** Adjoint of beta filter in vertical direction
 !***
@@ -1137,35 +1171,25 @@ include "type_intstat_point2this.inc"
 !***
   if(l_filt_g1) then
                                                  call btim(hfiltT_tim)
-     do j=1,jm
-        call this%rbetaT(km_all,hx,1,im,paspx,ssx,VALL(:,:,j))
-     enddo
-                                                 call etim(hfiltT_tim)
-                                                 call btim(bocoT_tim)
-        call this%bocoTx(VALL,km_all,im,jm,hx,hy)
-                                                 call etim(bocoT_tim)
-                                                 call btim(hfiltT_tim)
-     do i=1,im
+     do i=im,1,-1
         call this%rbetaT(km_all,hy,1,jm,paspy,ssy,VALL(:,i,:))
      enddo
                                                  call etim(hfiltT_tim)
                                                  call btim(bocoT_tim)
         call this%bocoTy(VALL,km_all,im,jm,hx,hy)
                                                  call etim(bocoT_tim)
-  endif
-  if(l_hgen) then
                                                  call btim(hfiltT_tim)
-     do j=1,jm
-        call this%rbetaT(km_all,hx,1,im,paspx,ssx,HALL(:,:,j))
+     do j=jm,1,-1
+        call this%rbetaT(km_all,hx,1,im,paspx,ssx,VALL(:,:,j))
      enddo
                                                  call etim(hfiltT_tim)
-  endif
                                                  call btim(bocoT_tim)
-        call this%bocoTx(HALL,km_all,im,jm,hx,hy,Fimax,Fjmax,2,gm)
+        call this%bocoTx(VALL,km_all,im,jm,hx,hy)
                                                  call etim(bocoT_tim)
+  endif
   if(l_hgen) then
                                                  call btim(hfiltT_tim)
-     do i=1,im
+     do i=im,1,-1
         call this%rbetaT(km_all,hy,1,jm,paspy,ssy,HALL(:,i,:))
      enddo
                                                  call etim(hfiltT_tim)
@@ -1173,12 +1197,29 @@ include "type_intstat_point2this.inc"
                                                  call btim(bocoT_tim)
         call this%bocoTy(HALL,km_all,im,jm,hx,hy,Fimax,Fjmax,2,gm)
                                                  call etim(bocoT_tim)
+  if(l_hgen) then
+                                                 call btim(hfiltT_tim)
+     do j=jm,1,-1
+        call this%rbetaT(km_all,hx,1,im,paspx,ssx,HALL(:,:,j))
+     enddo
+                                                 call etim(hfiltT_tim)
+  endif
+                                                 call btim(bocoT_tim)
+        call this%bocoTx(HALL,km_all,im,jm,hx,hy,Fimax,Fjmax,2,gm)
+                                                 call etim(bocoT_tim)
+endif
 !***
 !*** Apply (a-b\nabla^2)
 !***
                                                  call btim(weight_tim)
      call this%weighting_ens(VALL,HALL,km_all)
                                                  call etim(weight_tim)
+
+if(mg_filt_flag==-1) then
+                                                 call btim(dnsend_tim)
+  call this%downsending_ens_nearest(HALL,VALL,km_all)
+                                                 call etim(dnsend_tim)
+else
 !***
 !*** Apply Beta filter at all generations
 !***
@@ -1242,6 +1283,7 @@ include "type_intstat_point2this.inc"
      call this%sup_vrbeta1_new(km3_all,hx,hy,hz,im,jm,lm, pasp1,ss1,VALL)
                                                  call etim(vfilt_tim)
   endif
+endif
 
 !deallocate(VM3D)
 !deallocate(HM3D)
@@ -1288,18 +1330,23 @@ allocate(HM2D(km2,1-hx:im+hx,1-hy:jm+hy   ))                  ; HM2D=0.
 !***
 
 !
+! Vertically 
+!
+                                                 call btim(vfiltT_tim)
+     call this%stack_to_composite(VALL,VM2D,VM3D)
+     call this%sup_vrbeta1T(km3,hx,hy,hz,im,jm,lm,pasp1,ss1,VM3D)
+     call this%composite_to_stack(VM2D,VM3D,VALL)
+  if(l_hgen)  then
+     call this%stack_to_composite(HALL,HM2D,HM3D)
+     call this%sup_vrbeta1T(km3,hx,hy,hz,im,jm,lm,pasp1,ss1,HM3D)
+     call this%composite_to_stack(HM2D,HM3D,HALL)
+  endif
+                                                 call etim(vfiltT_tim)
+!
 ! Horizonatally
 !
                                                  call btim(hfiltT_tim)
-     do j=0,jm
-        call this%rbetaT(km,hx,1,im,paspx,ssx,VALL(:,:,j))
-     enddo
-                                                 call etim(hfiltT_tim)
-                                                 call btim(bocoT_tim)
-        call this%bocoTx(VALL,km,im,jm,hx,hy)
-                                                 call etim(bocoT_tim)
-                                                 call btim(hfiltT_tim)
-     do i=0,im
+     do i=im,1,-1
         call this%rbetaT(km,hy,1,jm,paspy,ssy,VALL(:,i,:))
      enddo
                                                  call etim(hfiltT_tim)
@@ -1307,21 +1354,16 @@ allocate(HM2D(km2,1-hx:im+hx,1-hy:jm+hy   ))                  ; HM2D=0.
         call this%bocoTy(VALL,km,im,jm,hx,hy)
                                                  call etim(bocoT_tim)
                                                  call btim(hfiltT_tim)
-        call this%stack_to_composite(VALL,VM2D,VM3D)
-                                                 call etim(hfiltT_tim)
-  if(l_hgen) then
-                                                 call btim(hfiltT_tim)
-     do j=0,jm
-        call this%rbetaT(km,hx,1,im,paspx,ssx,HALL(:,:,j))
+     do j=jm,1,-1
+        call this%rbetaT(km,hx,1,im,paspx,ssx,VALL(:,:,j))
      enddo
                                                  call etim(hfiltT_tim)
-  endif
                                                  call btim(bocoT_tim)
-        call this%bocoTx(HALL,km,im,jm,hx,hy,Fimax,Fjmax,2,gm)
+        call this%bocoTx(VALL,km,im,jm,hx,hy)
                                                  call etim(bocoT_tim)
   if(l_hgen) then
                                                  call btim(hfiltT_tim)
-     do i=0,im
+     do i=im,1,-1
         call this%rbetaT(km,hy,1,jm,paspy,ssy,HALL(:,i,:))
      enddo
                                                  call etim(hfiltT_tim)
@@ -1331,21 +1373,14 @@ allocate(HM2D(km2,1-hx:im+hx,1-hy:jm+hy   ))                  ; HM2D=0.
                                                  call etim(bocoT_tim)
   if(l_hgen) then
                                                  call btim(hfiltT_tim)
-        call this%stack_to_composite(HALL,HM2D,HM3D)
+     do j=jm,1,-1
+        call this%rbetaT(km,hx,1,im,paspx,ssx,HALL(:,:,j))
+     enddo
                                                  call etim(hfiltT_tim)
   endif
-!
-! Vertically 
-!
-                                                 call btim(vfiltT_tim)
-     call this%sup_vrbeta1T(km3,hx,hy,hz,im,jm,lm,pasp1,ss1,VM3D)
-     call this%composite_to_stack(VM2D,VM3D,VALL)
-  if(l_hgen)  then
-     call this%sup_vrbeta1T(km3,hx,hy,hz,im,jm,lm,pasp1,ss1,HM3D)
-     call this%composite_to_stack(HM2D,HM3D,HALL)
-  endif
-                                                 call etim(vfiltT_tim)
-     call this%barrierMPI
+                                                 call btim(bocoT_tim)
+        call this%bocoTx(HALL,km,im,jm,hx,hy,Fimax,Fjmax,2,gm)
+                                                 call etim(bocoT_tim)
 !***
 !*** Apply (a-b\nabla^2)
 !***
@@ -1363,7 +1398,7 @@ allocate(HM2D(km2,1-hx:im+hx,1-hy:jm+hy   ))                  ; HM2D=0.
         call this%bocox(VALL,km,im,jm,hx,hy)
                                                  call etim(boco_tim)
                                                  call btim(hfilt_tim)
-     do j=0,jm
+     do j=1,jm
         call this%rbeta(km,hx,1,im,paspx,ssx,VALL(:,:,j))
      enddo
                                                  call etim(hfilt_tim)
@@ -1371,19 +1406,16 @@ allocate(HM2D(km2,1-hx:im+hx,1-hy:jm+hy   ))                  ; HM2D=0.
         call this%bocoy(VALL,km,im,jm,hx,hy)
                                                  call etim(boco_tim)
                                                  call btim(hfilt_tim)
-     do i=0,im
+     do i=1,im
         call this%rbeta(km,hy,1,jm,paspy,ssy,VALL(:,i,:))
      enddo
-                                                 call etim(hfilt_tim)
-                                                 call btim(hfilt_tim)
-        call this%stack_to_composite(VALL,VM2D,VM3D)
                                                  call etim(hfilt_tim)
                                                  call btim(boco_tim)
         call this%bocox(HALL,km,im,jm,hx,hy,Fimax,Fjmax,2,gm)
                                                  call etim(boco_tim)
   if(l_hgen)  then
                                                  call btim(hfilt_tim)
-     do j=0,jm
+     do j=1,jm
         call this%rbeta(km,hx,1,im,paspx,ssx,HALL(:,:,j))
      enddo
                                                  call etim(hfilt_tim)
@@ -1393,23 +1425,20 @@ allocate(HM2D(km2,1-hx:im+hx,1-hy:jm+hy   ))                  ; HM2D=0.
                                                  call etim(boco_tim)
   if(l_hgen)  then
                                                  call btim(hfilt_tim)
-     do i=0,im
+     do i=1,im
         call this%rbeta(km,hy,1,jm,paspy,ssy,HALL(:,i,:))
      enddo
-                                                 call etim(hfilt_tim)
-  endif
-  if(l_hgen)  then
-                                                 call btim(hfilt_tim)
-        call this%stack_to_composite(HALL,HM2D,HM3D)
                                                  call etim(hfilt_tim)
   endif
 !
 ! Vertically
 !
-                                                 call etim(vfilt_tim)
+                                                 call btim(vfilt_tim)
+     call this%stack_to_composite(VALL,VM2D,VM3D)
      call this%sup_vrbeta1(km3,hx,hy,hz,im,jm,lm,pasp1,ss1,VM3D)
      call this%composite_to_stack(VM2D,VM3D,VALL)
   if(l_hgen)  then
+     call this%stack_to_composite(HALL,HM2D,HM3D)
      call this%sup_vrbeta1(km3,hx,hy,hz,im,jm,lm,pasp1,ss1,HM3D)
      call this%composite_to_stack(HM2D,HM3D,HALL)
   endif

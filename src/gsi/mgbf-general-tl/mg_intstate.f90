@@ -167,6 +167,7 @@ contains
   procedure:: upsending2,downsending2
   procedure:: upsending_ens,downsending_ens
   procedure:: upsending2_ens,downsending2_ens
+  procedure:: upsending_ens_nearest,downsending_ens_nearest
   generic :: upsending_loc => upsending_loc_g3,upsending_loc_g4
   procedure:: upsending_loc_g3,upsending_loc_g4
   generic :: downsending_loc => downsending_loc_g3,downsending_loc_g4
@@ -176,6 +177,7 @@ contains
   procedure:: weighting_loc_g3,weighting_loc_g4
   procedure:: adjoint,direct1
   procedure:: adjoint2,direct2
+  procedure:: adjoint_nearest,direct_nearest
   procedure:: adjoint_highest,direct_highest
 !from mg_filtering.f90
   procedure :: mg_filtering_procedure
@@ -659,6 +661,22 @@ interface
      real(r_kind),dimension(kmx,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(inout):: H
      real(r_kind),dimension(kmx,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(inout):: V
    end subroutine
+   module subroutine upsending_ens_nearest &
+        (this,V,H,kmx)
+     implicit none
+     class (mg_intstate_type),target:: this
+     integer(i_kind), intent(in):: kmx
+     real(r_kind),dimension(kmx,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(in):: V
+     real(r_kind),dimension(kmx,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(out):: H
+   end subroutine
+   module subroutine downsending_ens_nearest &
+        (this,H,V,kmx)
+     implicit none
+     class (mg_intstate_type),target:: this
+     integer(i_kind), intent(in):: kmx
+     real(r_kind),dimension(kmx,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(inout):: H
+     real(r_kind),dimension(kmx,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(inout):: V
+   end subroutine
    module subroutine upsending_loc_g3 &
         (this,V,H,Z,km_in,km_4_in,km_16_in)
      implicit none
@@ -780,6 +798,24 @@ interface
      real(r_kind), dimension(km_in,0:this%imL+1,0:this%jmL+1), intent(in):: W
      real(r_kind), dimension(km_in,1:this%im,1:this%jm), intent(out):: F
    end subroutine
+   module subroutine adjoint_nearest &
+        (this,F,W,km_in,g)
+     implicit none
+     class (mg_intstate_type),target:: this
+     integer(i_kind),intent(in):: g
+     integer(i_kind),intent(in):: km_in
+     real(r_kind), dimension(km_in,1:this%im,1:this%jm), intent(in):: F
+     real(r_kind), dimension(km_in,-1:this%imL+2,-1:this%jmL+2), intent(out):: W
+   end subroutine
+   module subroutine direct_nearest &
+        (this,W,F,km_in,g)
+     implicit none
+     class (mg_intstate_type),target:: this
+     integer(i_kind),intent(in):: g
+     integer(i_kind),intent(in):: km_in
+     real(r_kind), dimension(km_in,-1:this%imL+2,-1:this%jmL+2), intent(in):: W
+     real(r_kind), dimension(km_in,1:this%im,1:this%jm), intent(out):: F
+   end subroutine
    module subroutine adjoint_highest &
         (this,F,W,km_in,g)
      implicit none
@@ -799,9 +835,10 @@ interface
      real(r_kind), dimension(km_in,1:this%im0(g),1:this%jm0(g)), intent(out):: F
    end subroutine
 !from mg_filtering
-   module subroutine mg_filtering_procedure (this,mg_filt)
+   module subroutine mg_filtering_procedure (this,mg_filt,mg_filt_flag)
      class(mg_intstate_type),target::this
      integer(i_kind),intent(in):: mg_filt
+     integer(i_kind),intent(in):: mg_filt_flag
    end subroutine
    module subroutine mg_filtering_rad1(this)
      class(mg_intstate_type),target::this
@@ -821,14 +858,17 @@ interface
    module subroutine mg_filtering_lin3(this)
      class(mg_intstate_type),target::this
    end subroutine
-   module subroutine mg_filtering_rad2_ens(this)
+   module subroutine mg_filtering_rad2_ens(this,mg_filt_flag)
      class(mg_intstate_type),target::this
+     integer(i_kind),intent(in):: mg_filt_flag
    end subroutine
-   module subroutine mg_filtering_lin2_ens(this)
+   module subroutine mg_filtering_lin2_ens(this,mg_filt_flag)
      class(mg_intstate_type),target::this
+     integer(i_kind),intent(in):: mg_filt_flag
    end subroutine
-   module subroutine mg_filtering_fast_ens(this)
+   module subroutine mg_filtering_fast_ens(this,mg_filt_flag)
      class(mg_intstate_type),target::this
+     integer(i_kind),intent(in):: mg_filt_flag
    end subroutine
    module subroutine mg_filtering_fast(this)
      class(mg_intstate_type),target::this
@@ -1218,6 +1258,20 @@ real(r_kind):: gen_fac
                  call this%rbeta(this%hx,1,this%im,this%hy,1,this%jm,this%pasp2,this%ss2,this%VALL(1,:,:))
                  this%ss2=this%ss2/sqrt(this%VALL(1,this%im/2,this%jm/2))
                  this%VALL(1,:,:)=0.
+                 call this%cholaspect(1,this%im,this%paspx)
+                 call this%getlinesum(this%hx,1,this%im,this%paspx,this%ssx)
+                 this%VALL(1,this%im/2,1)=1.
+                 call this%rbetaT(this%hx,1,this%im,this%paspx,this%ssx,this%VALL(1,:,1))
+                 call this%rbeta(this%hx,1,this%im,this%paspx(1,1,:),this%ssx,this%VALL(1,:,1))
+                 this%ssx=this%ssx/sqrt(this%VALL(1,this%im/2,1))
+                 this%VALL(1,:,1)=0.
+                 call this%cholaspect(1,this%jm,this%paspy)
+                 call this%getlinesum(this%hy,1,this%jm,this%paspy,this%ssy)
+                 this%VALL(1,1,this%jm/2)=1.
+                 call this%rbetaT(this%hy,1,this%jm,this%paspy,this%ssy,this%VALL(1,1,:))
+                 call this%rbeta(this%hy,1,this%jm,this%paspy(1,1,:),this%ssy,this%VALL(1,1,:))
+                 this%ssy=this%ssy/sqrt(this%VALL(1,1,this%jm/2))
+                 this%VALL(1,1,:)=0.
               else
                  call this%cholaspect(1,this%lm,this%pasp1)
                  call this%cholaspect(1,this%im,1,this%jm,this%pasp2)

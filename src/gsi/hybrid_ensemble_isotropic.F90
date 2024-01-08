@@ -3738,7 +3738,7 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
 
 ! Apply vertical smoother on each ensemble member
   if(regional.and.l_mgbf_loc.and.ig==1) then
-     allocate(hwork_mgbf(obj_mgbf(1)%km_a_all,obj_mgbf(1)%n0:obj_mgbf(1)%nm,obj_mgbf(1)%m0:obj_mgbf(1)%mm))
+     allocate(hwork_mgbf(obj_mgbf(1)%km_a_all,obj_mgbf(1)%nm,obj_mgbf(1)%mm))
      hwork_mgbf=zero
      iadvance=1 ; iback=2
 !$omp parallel do schedule(dynamic,1) private(k,kk,ii,i,j,hwork_tmp)
@@ -3751,16 +3751,16 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
                  hwork_tmp(i,j)=a_en(k)%r3(ipnt)%q(j,i,kk)
               enddo
            enddo
-           do j=obj_mgbf(1)%m0,obj_mgbf(1)%mm
-              do i=obj_mgbf(1)%n0,obj_mgbf(1)%nm
+           do j=1,obj_mgbf(1)%mm
+              do i=1,obj_mgbf(1)%nm
                  hwork_mgbf(ii,i,j)=hwork_tmp(i+1,j+1)
               enddo
            enddo
         enddo
      enddo
      if(obj_mgbf(1)%km_a_all==obj_mgbf(1)%km_all &
-          &.and. obj_mgbf(1)%nm-obj_mgbf(1)%n0==obj_mgbf(1)%im-obj_mgbf(1)%i0 &
-          &.and. obj_mgbf(1)%mm-obj_mgbf(1)%m0==obj_mgbf(1)%jm-obj_mgbf(1)%j0) then
+          &.and. obj_mgbf(1)%nm==obj_mgbf(1)%im &
+          &.and. obj_mgbf(1)%mm==obj_mgbf(1)%jm) then
         obj_mgbf(1)%VALL=hwork_mgbf
      elseif(obj_mgbf(1)%l_new_map) then
         call obj_mgbf(1)%anal_to_filt_all2(hwork_mgbf)
@@ -3789,7 +3789,7 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
 ! Apply horizontal smoother for number of horizontal scales
   if(regional) then
      if(l_mgbf_loc.and.ig==1) then
-        call obj_mgbf(1)%mg_filtering_procedure(obj_mgbf(1)%mgbf_proc)
+        call obj_mgbf(1)%mg_filtering_procedure(obj_mgbf(1)%mgbf_proc,0)
      else
 ! Convert from subdomain to full horizontal field distributed among processors
         call general_sub2grid(grd_loc,a_en_work,hwork)
@@ -3813,23 +3813,23 @@ subroutine bkgcov_a_en_new_factorization(ig,a_en)
 ! Retrieve ensemble components from long vector
 ! Apply vertical smoother on each ensemble member
   if(regional.and.l_mgbf_loc.and.ig==1) then
-     iadvance=2 ; iback=1
      if(obj_mgbf(1)%km_a_all==obj_mgbf(1)%km_all &
-          &.and. obj_mgbf(1)%nm-obj_mgbf(1)%n0==obj_mgbf(1)%im-obj_mgbf(1)%i0 &
-          &.and. obj_mgbf(1)%mm-obj_mgbf(1)%m0==obj_mgbf(1)%jm-obj_mgbf(1)%j0) then
+          &.and. obj_mgbf(1)%nm==obj_mgbf(1)%im &
+          &.and. obj_mgbf(1)%mm==obj_mgbf(1)%jm) then
         hwork_mgbf=obj_mgbf(1)%VALL
      elseif(obj_mgbf(1)%l_new_map) then
         call obj_mgbf(1)%filt_to_anal_all2(hwork_mgbf)
      else
         call obj_mgbf(1)%filt_to_anal_all(hwork_mgbf)
      endif
+     iadvance=2 ; iback=1
 !$omp parallel do schedule(dynamic,1) private(k,kk,ii,i,j,hwork_tmp)
      do k=1,n_ens
         do kk=1,grd_loc%nsig
            ii=(k-1)*grd_loc%nsig+kk
            hwork_tmp=zero
-           do j=obj_mgbf(1)%m0,obj_mgbf(1)%mm
-              do i=obj_mgbf(1)%n0,obj_mgbf(1)%nm
+           do j=1,obj_mgbf(1)%mm
+              do i=1,obj_mgbf(1)%nm
                  hwork_tmp(i+1,j+1)=hwork_mgbf(ii,i,j)
               enddo
            enddo
@@ -3933,52 +3933,15 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
      if(regional) then
         if(l_mgbf_loc) then
            ii=0
-           call btim(weight_tim)
            do k=1,obj_mgbf(ig)%km_all
-              do j=obj_mgbf(ig)%j0-obj_mgbf(ig)%hy,obj_mgbf(ig)%jm+obj_mgbf(ig)%hy
-                 do i=obj_mgbf(ig)%i0-obj_mgbf(ig)%hx,obj_mgbf(ig)%im+obj_mgbf(ig)%hx
-                    ii=ii+2
-                    obj_mgbf(ig)%VALL(k,i,j)=z(ii-1)
-                    obj_mgbf(ig)%HALL(k,i,j)=z(ii)
+              do j=1-obj_mgbf(ig)%hy,obj_mgbf(ig)%jm+obj_mgbf(ig)%hy
+                 do i=1-obj_mgbf(ig)%hx,obj_mgbf(ig)%im+obj_mgbf(ig)%hx
+                    ii=ii+1
+                    obj_mgbf(ig)%VALL(k,i,j)=z(ii)
                  enddo
               enddo
            enddo
-           call obj_mgbf(ig)%weighting_ens(obj_mgbf(ig)%VALL,obj_mgbf(ig)%HALL,obj_mgbf(ig)%km_all)
-           call etim(weight_tim)
-           call btim(boco_tim)
-           if(obj_mgbf(ig)%l_filt_g1) then
-              call obj_mgbf(ig)%boco_2d(obj_mgbf(ig)%VALL,obj_mgbf(ig)%km_all,&
-                   & obj_mgbf(ig)%im,obj_mgbf(ig)%jm,obj_mgbf(ig)%hx,obj_mgbf(ig)%hy)
-           endif
-           call obj_mgbf(ig)%boco_2d(obj_mgbf(ig)%HALL,obj_mgbf(ig)%km_all,&
-                & obj_mgbf(ig)%im,obj_mgbf(ig)%jm,obj_mgbf(ig)%hx,obj_mgbf(ig)%hy,&
-                & obj_mgbf(ig)%Fimax,obj_mgbf(ig)%Fjmax,2,obj_mgbf(ig)%gm)
-           call etim(boco_tim)
-           call btim(hfilt_tim)
-           if(obj_mgbf(ig)%l_filt_g1) then
-              call obj_mgbf(ig)%rbeta(obj_mgbf(ig)%km_all,&
-                   & obj_mgbf(ig)%hx,obj_mgbf(ig)%i0,obj_mgbf(ig)%im,&
-                   & obj_mgbf(ig)%hy,obj_mgbf(ig)%j0,obj_mgbf(ig)%jm,&
-                   & obj_mgbf(ig)%pasp2,obj_mgbf(ig)%ss2,obj_mgbf(ig)%VALL)
-           endif
-           if(obj_mgbf(ig)%l_hgen) then
-              call obj_mgbf(ig)%rbeta(obj_mgbf(ig)%km_all,&
-                   & obj_mgbf(ig)%hx,obj_mgbf(ig)%i0,obj_mgbf(ig)%im,&
-                   & obj_mgbf(ig)%hy,obj_mgbf(ig)%j0,obj_mgbf(ig)%jm,&
-                   & obj_mgbf(ig)%pasp2,obj_mgbf(ig)%ss2,obj_mgbf(ig)%HALL)
-           endif
-           call etim(hfilt_tim)
-           call btim(dnsend_tim)
-           call obj_mgbf(ig)%downsending_ens(obj_mgbf(ig)%HALL,obj_mgbf(ig)%VALL,obj_mgbf(ig)%km_all)
-           call etim(dnsend_tim)
-           if(obj_mgbf(ig)%l_loc_vertical) then
-              call btim(vfilt_tim)
-              call obj_mgbf(ig)%sup_vrbeta1_new(obj_mgbf(ig)%km3_all,&
-                   & obj_mgbf(ig)%hx,obj_mgbf(ig)%hy,obj_mgbf(ig)%hz,&
-                   & obj_mgbf(ig)%im,obj_mgbf(ig)%jm,obj_mgbf(ig)%lm,&
-                   & obj_mgbf(ig)%pasp1,obj_mgbf(ig)%ss1,obj_mgbf(ig)%VALL)
-              call etim(vfilt_tim)
-           endif
+           call obj_mgbf(ig)%mg_filtering_procedure(obj_mgbf(ig)%mgbf_proc,1)
         else
 ! Make a copy of input variable z to hwork
            hwork=z
@@ -4000,25 +3963,27 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
   end if
 
 ! Retrieve ensemble components from long vector
+! Apply vertical smoother on each ensemble member
   if(regional.and.l_mgbf_loc) then
-     allocate(hwork_mgbf(obj_mgbf(ig)%km_a_all,obj_mgbf(ig)%n0:obj_mgbf(ig)%nm,obj_mgbf(ig)%m0:obj_mgbf(ig)%mm))
+     allocate(hwork_mgbf(obj_mgbf(ig)%km_a_all,obj_mgbf(ig)%nm,obj_mgbf(ig)%mm))
      hwork_mgbf=zero
      if(obj_mgbf(ig)%km_a_all==obj_mgbf(ig)%km_all &
-          &.and. obj_mgbf(ig)%nm-obj_mgbf(ig)%n0==obj_mgbf(ig)%im-obj_mgbf(ig)%i0 &
-          &.and. obj_mgbf(ig)%mm-obj_mgbf(ig)%m0==obj_mgbf(ig)%jm-obj_mgbf(ig)%j0) then
+          &.and. obj_mgbf(ig)%nm==obj_mgbf(ig)%im &
+          &.and. obj_mgbf(ig)%mm==obj_mgbf(ig)%jm) then
         hwork_mgbf=obj_mgbf(ig)%VALL
      elseif(obj_mgbf(ig)%l_new_map) then
         call obj_mgbf(ig)%filt_to_anal_all2(hwork_mgbf)
      else
         call obj_mgbf(ig)%filt_to_anal_all(hwork_mgbf)
      endif
+     iadvance=2 ; iback=1
 !$omp parallel do schedule(dynamic,1) private(k,kk,ii,i,j,hwork_tmp)
      do k=1,n_ens
         do kk=1,grd_loc%nsig
            ii=(k-1)*grd_loc%nsig+kk
            hwork_tmp=zero
-           do j=obj_mgbf(ig)%m0,obj_mgbf(ig)%mm
-              do i=obj_mgbf(ig)%n0,obj_mgbf(ig)%nm
+           do j=1,obj_mgbf(ig)%mm
+              do i=1,obj_mgbf(ig)%nm
                  hwork_tmp(i+1,j+1)=hwork_mgbf(ii,i,j)
               enddo
            enddo
@@ -4028,25 +3993,20 @@ subroutine ckgcov_a_en_new_factorization(ig,z,a_en)
               enddo
            enddo
         enddo
+        if(.not.obj_mgbf(ig)%l_loc_vertical) call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
      enddo
      deallocate(hwork_mgbf)
   else
-     ii=0
+     iadvance=2 ; iback=1
+!$omp parallel do schedule(dynamic,1) private(k,ii,is,ie)
      do k=1,n_ens
+        ii=(k-1)*a_en(1)%ndim
         is=ii+1
         ie=ii+a_en(1)%ndim
         a_en(k)%values(1:a_en(k)%ndim)=a_en_work(is:ie)
-        ii=ii+a_en(1)%ndim
-     enddo
-     deallocate(a_en_work)
-  endif
-
-! Apply vertical smoother on each ensemble member
-  if(.not.regional.or..not.l_mgbf_loc.or..not.obj_mgbf(ig)%l_loc_vertical) then
-     do k=1,n_ens
-        iadvance=2 ; iback=1
         call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
      enddo
+     deallocate(a_en_work)
   endif
 
   return
@@ -4116,18 +4076,13 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
   endif
 
 ! Apply vertical smoother on each ensemble member
-  if(.not.regional.or..not.l_mgbf_loc.or..not.obj_mgbf(ig)%l_loc_vertical) then
-     do k=1,n_ens
-        iadvance=1 ; iback=2
-        call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
-     enddo
-  endif
-
   if(regional.and.l_mgbf_loc) then
-     allocate(hwork_mgbf(obj_mgbf(ig)%km_a_all,obj_mgbf(ig)%n0:obj_mgbf(ig)%nm,obj_mgbf(ig)%m0:obj_mgbf(ig)%mm))
+     allocate(hwork_mgbf(obj_mgbf(ig)%km_a_all,obj_mgbf(ig)%nm,obj_mgbf(ig)%mm))
      hwork_mgbf=zero
+     iadvance=1 ; iback=2
 !$omp parallel do schedule(dynamic,1) private(k,kk,ii,i,j,hwork_tmp)
      do k=1,n_ens
+        if(.not.obj_mgbf(ig)%l_loc_vertical) call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
         do kk=1,grd_loc%nsig
            ii=(k-1)*grd_loc%nsig+kk
            do j=1,grd_loc%lat2
@@ -4135,16 +4090,16 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
                  hwork_tmp(i,j)=a_en(k)%r3(ipnt)%q(j,i,kk)
               enddo
            enddo
-           do j=obj_mgbf(ig)%m0,obj_mgbf(ig)%mm
-              do i=obj_mgbf(ig)%n0,obj_mgbf(ig)%nm
+           do j=1,obj_mgbf(ig)%mm
+              do i=1,obj_mgbf(ig)%nm
                  hwork_mgbf(ii,i,j)=hwork_tmp(i+1,j+1)
               enddo
            enddo
         enddo
      enddo
      if(obj_mgbf(ig)%km_a_all==obj_mgbf(ig)%km_all &
-          &.and. obj_mgbf(ig)%nm-obj_mgbf(ig)%n0==obj_mgbf(ig)%im-obj_mgbf(ig)%i0 &
-          &.and. obj_mgbf(ig)%mm-obj_mgbf(ig)%m0==obj_mgbf(ig)%jm-obj_mgbf(ig)%j0) then
+          &.and. obj_mgbf(ig)%nm==obj_mgbf(ig)%im &
+          &.and. obj_mgbf(ig)%mm==obj_mgbf(ig)%jm) then
         obj_mgbf(ig)%VALL=hwork_mgbf
      elseif(obj_mgbf(ig)%l_new_map) then
         call obj_mgbf(ig)%anal_to_filt_all2(hwork_mgbf)
@@ -4160,12 +4115,14 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
         write(6,*)'ckgcov_a_en_new_factorization_ad: trouble in alloc(a_en_work)'
         call stop2(999)
      endif
-     ii=0
+     iadvance=1 ; iback=2
+!$omp parallel do schedule(dynamic,1) private(k,ii,is,ie)
      do k=1,n_ens
+        call new_factorization_rf_z(a_en(k)%r3(ipnt)%q,iadvance,iback,ig)
+        ii=(k-1)*a_en(1)%ndim
         is=ii+1
         ie=ii+a_en(1)%ndim
         a_en_work(is:ie)=a_en(k)%values(1:a_en(k)%ndim)
-        ii=ii+a_en(1)%ndim
      enddo
   endif
 
@@ -4177,53 +4134,16 @@ subroutine ckgcov_a_en_new_factorization_ad(ig,z,a_en)
 ! Apply horizontal smoother for number of horizontal scales
      if(regional) then
         if(l_mgbf_loc) then
-           if(obj_mgbf(ig)%l_loc_vertical) then
-              call btim(vfiltT_tim)
-              call obj_mgbf(ig)%sup_vrbeta1T_new(obj_mgbf(ig)%km3_all,&
-                   & obj_mgbf(ig)%hx,obj_mgbf(ig)%hy,obj_mgbf(ig)%hz,&
-                   & obj_mgbf(ig)%im,obj_mgbf(ig)%jm,obj_mgbf(ig)%lm,&
-                   & obj_mgbf(ig)%pasp1,obj_mgbf(ig)%ss1,obj_mgbf(ig)%VALL)
-              call etim(vfiltT_tim)
-           endif
-           call btim(upsend_tim)
-           call obj_mgbf(ig)%upsending_ens(obj_mgbf(ig)%VALL,obj_mgbf(ig)%HALL,obj_mgbf(ig)%km_all)
-           call etim(upsend_tim)
-           call btim(hfiltT_tim)
-           if(obj_mgbf(ig)%l_filt_g1) then
-              call obj_mgbf(ig)%rbetaT(obj_mgbf(ig)%km_all,&
-                   & obj_mgbf(ig)%hx,obj_mgbf(ig)%i0,obj_mgbf(ig)%im,&
-                   & obj_mgbf(ig)%hy,obj_mgbf(ig)%j0,obj_mgbf(ig)%jm,&
-                   & obj_mgbf(ig)%pasp2,obj_mgbf(ig)%ss2,obj_mgbf(ig)%VALL)
-           endif
-           if(obj_mgbf(ig)%l_hgen) then
-              call obj_mgbf(ig)%rbetaT(obj_mgbf(ig)%km_all,&
-                   & obj_mgbf(ig)%hx,obj_mgbf(ig)%i0,obj_mgbf(ig)%im,&
-                   & obj_mgbf(ig)%hy,obj_mgbf(ig)%j0,obj_mgbf(ig)%jm,&
-                   & obj_mgbf(ig)%pasp2,obj_mgbf(ig)%ss2,obj_mgbf(ig)%HALL)
-           endif
-           call etim(hfiltT_tim)
-           call btim(bocoT_tim)
-           if(obj_mgbf(ig)%l_filt_g1) then
-              call obj_mgbf(ig)%bocoT_2d(obj_mgbf(ig)%VALL,obj_mgbf(ig)%km_all,&
-                   & obj_mgbf(ig)%im,obj_mgbf(ig)%jm,obj_mgbf(ig)%hx,obj_mgbf(ig)%hy)
-           endif
-           call obj_mgbf(ig)%bocoT_2d(obj_mgbf(ig)%HALL,obj_mgbf(ig)%km_all,&
-                & obj_mgbf(ig)%im,obj_mgbf(ig)%jm,obj_mgbf(ig)%hx,obj_mgbf(ig)%hy,&
-                & obj_mgbf(ig)%Fimax,obj_mgbf(ig)%Fjmax,2,obj_mgbf(ig)%gm)
-           call etim(bocoT_tim)
-           call btim(weight_tim)
-           call obj_mgbf(ig)%weighting_ens(obj_mgbf(ig)%VALL,obj_mgbf(ig)%HALL,obj_mgbf(ig)%km_all)
+           call obj_mgbf(ig)%mg_filtering_procedure(obj_mgbf(ig)%mgbf_proc,-1)
            ii=0
            do k=1,obj_mgbf(ig)%km_all
-              do j=obj_mgbf(ig)%j0-obj_mgbf(ig)%hy,obj_mgbf(ig)%jm+obj_mgbf(ig)%hy
-                 do i=obj_mgbf(ig)%i0-obj_mgbf(ig)%hx,obj_mgbf(ig)%im+obj_mgbf(ig)%hx
-                    ii=ii+2
-                    z(ii-1)=obj_mgbf(ig)%VALL(k,i,j)
-                    z(ii)=obj_mgbf(ig)%HALL(k,i,j)
+              do j=1-obj_mgbf(ig)%hy,obj_mgbf(ig)%jm+obj_mgbf(ig)%hy
+                 do i=1-obj_mgbf(ig)%hx,obj_mgbf(ig)%im+obj_mgbf(ig)%hx
+                    ii=ii+1
+                    z(ii)=obj_mgbf(ig)%VALL(k,i,j)
                  enddo
               enddo
            enddo
-           call etim(weight_tim)
         else
 ! Convert from subdomain to full horizontal field distributed among processors
            call general_sub2grid(grd_loc,a_en_work,hwork)
@@ -4667,9 +4587,9 @@ subroutine hybens_localization_setup
    ! and triggered by lsqrtb.
    if ( regional ) then
       if ( l_mgbf_loc ) then
-         nval_lenz_en = 2 * maxval( obj_mgbf(1:naensgrp)%km_all &
-              & * (obj_mgbf(1:naensgrp)%im - obj_mgbf(1:naensgrp)%i0 + obj_mgbf(1:naensgrp)%hx*2 + 1) &
-              & * (obj_mgbf(1:naensgrp)%jm - obj_mgbf(1:naensgrp)%j0 + obj_mgbf(1:naensgrp)%hy*2 + 1) )
+         nval_lenz_en = maxval( obj_mgbf(1:naensgrp)%km_all &
+              & * (obj_mgbf(1:naensgrp)%im + obj_mgbf(1:naensgrp)%hx*2) &
+              & * (obj_mgbf(1:naensgrp)%jm + obj_mgbf(1:naensgrp)%hy*2) )
       else
          nval_lenz_en = grd_loc%nlat*grd_loc%nlon*(grd_loc%kend_alloc-grd_loc%kbegin_loc+1)
       endif

@@ -500,6 +500,113 @@ integer(i_kind):: iL,jL,i,j
                         endsubroutine downsending_ens
 
 !&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+                    module    subroutine upsending_ens_nearest                        &
+!***********************************************************************
+!                                                                      !
+!  Adjoint interpolate and upsend:                                     !
+!       First from g1->g2 (V -> H)                                     !
+!       Then  from g2->...->gn  (H -> H)                               !
+!                                                                      !
+!***********************************************************************
+(this,V,H,kmx)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+integer(i_kind), intent(in):: kmx
+real(r_kind),dimension(kmx,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(in):: V
+real(r_kind),dimension(kmx,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(out):: H
+
+real(r_kind),dimension(kmx,-1:this%imL+2,-1:this%jmL+2):: V_INT
+real(r_kind),dimension(kmx,-1:this%imL+2,-1:this%jmL+2):: H_INT
+integer(i_kind):: g,L
+!-----------------------------------------------------------------------
+!
+! From generation 1 to generation 2
+!
+
+        call this%adjoint_nearest(V(1:kmx,1:this%im,1:this%jm),V_INT,kmx,1)
+
+        call this%bocoT_2d(V_INT,kmx,this%imL,this%jmL,2,2)
+
+        call this%upsend_all(V_INT(1:kmx,1:this%imL,1:this%jmL),H,kmx)
+!
+! From generation 2 sequentially to higher generations
+!
+  do g=2,this%gm-1
+
+    if(g==this%my_hgen) then
+        call this%adjoint_nearest(H(1:kmx,1:this%im,1:this%jm),H_INT,kmx,g)
+    endif
+
+        call this%bocoT_2d(H_INT,kmx,this%imL,this%jmL,2,2,this%FimaxL,this%FjmaxL,g,g)
+
+        call this%upsend_all(H_INT(1:kmx,1:this%imL,1:this%jmL),H,kmx,g,g+1)
+
+  end do
+
+
+!-----------------------------------------------------------------------
+                        endsubroutine upsending_ens_nearest
+
+!&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+                    module    subroutine downsending_ens_nearest                      &
+!***********************************************************************
+!                                                                      !
+!  Downsend, interpolate and add:                                      !
+!      First from gm->g3...->g2                                        !
+!      Then  from g2->g1                                               !
+!                                                                      !
+!***********************************************************************
+(this,H,V,kmx)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+integer(i_kind), intent(in):: kmx
+real(r_kind),dimension(kmx,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(inout):: H
+real(r_kind),dimension(kmx,1-this%hx:this%im+this%hx,1-this%hy:this%jm+this%hy),intent(inout):: V
+
+real(r_kind),dimension(kmx,-1:this%imL+2,-1:this%jmL+2):: H_INT
+real(r_kind),dimension(kmx,-1:this%imL+2,-1:this%jmL+2):: V_INT
+real(r_kind),dimension(kmx,1:this%im,1:this%jm):: H_PROX
+real(r_kind),dimension(kmx,1:this%im,1:this%jm):: V_PROX
+integer(i_kind):: g,l,k
+integer(i_kind):: iL,jL,i,j
+!-----------------------------------------------------------------------
+!
+! Upper generations
+!
+    do g=this%gm,3,-1
+
+        call this%downsend_all(H(1:kmx,1:this%im,1:this%jm),H_INT(1:kmx,1:this%imL,1:this%jmL),kmx,g,g-1)
+
+        call this%boco_2d(H_INT,kmx,this%imL,this%jmL,2,2,this%FimaxL,this%FjmaxL,g-1,g-1)
+
+      if(this%my_hgen==g-1) then
+        call this%direct_nearest(H_INT,H_PROX,kmx,g-1)
+        H(1:kmx,1:this%im,1:this%jm)=H     (1:kmx,1:this%im,1:this%jm)                      &
+                                    +H_PROX(1:kmx,1:this%im,1:this%jm)
+      endif
+
+    enddo
+
+!
+! From geneartion 2 to generation 1
+!
+
+        call this%downsend_all(H(1:kmx,1:this%im,1:this%jm),V_INT(1:kmx,1:this%imL,1:this%jmL),kmx)
+          H(:,:,:)=0.
+
+        call this%boco_2d(V_INT,kmx,this%imL,this%jmL,2,2)
+
+        call this%direct_nearest(V_INT,V_PROX,kmx,1)
+
+          V(1:kmx,1:this%im,1:this%jm)=V     (1:kmx,1:this%im,1:this%jm)                    &
+                                      +V_PROX(1:kmx,1:this%im,1:this%jm)
+
+!-----------------------------------------------------------------------
+                        endsubroutine downsending_ens_nearest
+
+!&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
                     module    subroutine upsending2_ens                       &
 !***********************************************************************
 !                                                                      !
@@ -1382,6 +1489,121 @@ integer(i_kind):: i,j,iL,jL
 
 !-----------------------------------------------------------------------
                         endsubroutine direct2
+
+!&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+                     module   subroutine adjoint_nearest                              &
+!***********************************************************************
+!                                                                      !
+!   Mapping from the high to low resolution grid                       !
+!   selecting the nearest point                                        !
+!                         - offset version -                           ! 
+!                                                                      !
+!***********************************************************************
+(this,F,W,km_in,g)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+integer(i_kind),intent(in):: g 
+integer(i_kind),intent(in):: km_in
+real(r_kind), dimension(km_in,1:this%im,1:this%jm), intent(in):: F
+real(r_kind), dimension(km_in,-1:this%imL+2,-1:this%jmL+2), intent(out):: W
+real(r_kind), dimension(km_in,1:this%im,-1:this%jmL+2):: W_AUX
+integer(i_kind):: i,j,iL,jL
+!-----------------------------------------------------------------------
+!
+! 3)
+!
+     W_AUX(:,:,:)= 0.
+
+  do j=this%jm-mod(this%jm,2),2,-2
+    jL = j/2
+    do i=this%im,1,-1
+      W_AUX(:,i,jL  )=W_AUX(:,i,jL  )+0.5**0.5*F(:,i,j)
+    enddo
+  enddo
+!
+! 2)
+!
+  do j=this%jm-1+mod(this%jm,2),1,-2
+    jL=j/2
+    do i=this%im,1,-1
+      W_AUX(:,i,jL+1)=W_AUX(:,i,jL+1)+0.5**0.5*F(:,i,j)
+    enddo
+  enddo
+
+    W(:,:,:)=0.
+!
+! 1)
+!
+  do jL=this%jmL+2,-1,-1
+    do i=this%im-1+mod(this%im,2),1,-2
+    iL = i/2
+      W(:,iL+1,jL)=W(:,iL+1,jL)+0.5**0.5*W_AUX(:,i,jL)
+    enddo
+    do i=this%im-mod(this%im,2),2,-2
+    iL=i/2
+      W(:,iL  ,jL)=W(:,iL  ,jL)+0.5**0.5*W_AUX(:,i,jL)
+     enddo
+   enddo
+
+!-----------------------------------------------------------------------
+                        endsubroutine adjoint_nearest
+
+!&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+                    module    subroutine direct_nearest                              &
+!***********************************************************************
+!                                                                      !
+!   Mapping from the low to high resolution grid                       !
+!   selecting the nearest point                                        !
+!                         - offset version -                           !
+!                                                                      !
+!***********************************************************************
+(this,W,F,km_in,g)
+!-----------------------------------------------------------------------
+implicit none
+class (mg_intstate_type),target:: this
+integer(i_kind),intent(in):: g
+integer(i_kind),intent(in):: km_in
+real(r_kind), dimension(km_in,-1:this%imL+2,-1:this%jmL+2), intent(in):: W
+real(r_kind), dimension(km_in,1:this%im,1:this%jm), intent(out):: F
+real(r_kind), dimension(km_in,1:this%im,-1:this%jmL+2):: W_AUX
+integer(i_kind):: i,j,iL,jL
+!-----------------------------------------------------------------------
+
+!
+! 1)
+!
+   do jL=-1,this%jmL+2
+     do i=1,this%im-1+mod(this%im,2),2
+       iL=i/2
+         W_AUX(:,i,jL)=0.5**0.5*W(:,iL+1,jL)
+     enddo
+     do i=2,this%im-mod(this%im,2),2
+       iL=i/2
+         W_AUX(:,i,jL)=0.5**0.5*w(:,iL  ,jL)
+     enddo
+   enddo
+!
+! 2)
+!
+   do j=1,this%jm-1+mod(this%jm,2),2
+     jL=j/2
+     do i=1,this%im
+       F(:,i,j)=0.5**0.5*W_AUX(:,i,jL+1)
+     enddo
+   enddo
+!
+! 3)
+!
+   do j=2,this%jm-mod(this%jm,2),2
+     jL=j/2
+     do i=1,this%im
+       F(:,i,j)=0.5**0.5*W_AUX(:,i,jL  )
+     enddo
+   enddo
+
+!-----------------------------------------------------------------------
+                        endsubroutine direct_nearest
 
 !&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
                      module   subroutine adjoint_highest                              &

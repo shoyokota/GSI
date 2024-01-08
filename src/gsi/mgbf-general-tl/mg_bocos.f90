@@ -5239,7 +5239,7 @@ FILT_GRID:    if(l_sidesend) then
       if( itarg_e >= 0 ) then
         nebpe = itarg_e
 
-              allocate( sBuf_E(1:km_in,0:nbx,0:jmax), stat = iaerr )
+              allocate( sBuf_E(1:km_in,1:nbx,1:jmax), stat = iaerr )
 
               do j=1,jmax
               do i=1,nbx
