@@ -3775,7 +3775,8 @@ endif
      if(obj_mgbf(1)%km_a_all==obj_mgbf(1)%km_all &
           &.and. obj_mgbf(1)%nm==obj_mgbf(1)%im &
           &.and. obj_mgbf(1)%mm==obj_mgbf(1)%jm) then
-        obj_mgbf(1)%VALL=hwork_mgbf
+        obj_mgbf(1)%VALL=zero
+        obj_mgbf(1)%VALL(1:obj_mgbf(1)%km_all,1:obj_mgbf(1)%im,1:obj_mgbf(1)%jm)=hwork_mgbf
      elseif(obj_mgbf(1)%l_new_map) then
         call obj_mgbf(1)%anal_to_filt_all2(hwork_mgbf)
      else
@@ -3860,7 +3861,8 @@ endif
      if(obj_mgbf(1)%km_a_all==obj_mgbf(1)%km_all &
           &.and. obj_mgbf(1)%nm==obj_mgbf(1)%im &
           &.and. obj_mgbf(1)%mm==obj_mgbf(1)%jm) then
-        hwork_mgbf=obj_mgbf(1)%VALL
+        hwork_mgbf=obj_mgbf(1)%VALL(1:obj_mgbf(1)%km_all,1:obj_mgbf(1)%im,1:obj_mgbf(1)%jm)
+        obj_mgbf(1)%VALL=zero
      elseif(obj_mgbf(1)%l_new_map) then
         call obj_mgbf(1)%filt_to_anal_all2(hwork_mgbf)
      else
@@ -4044,7 +4046,8 @@ endif
      if(obj_mgbf(ig)%km_a_all==obj_mgbf(ig)%km_all &
           &.and. obj_mgbf(ig)%nm==obj_mgbf(ig)%im &
           &.and. obj_mgbf(ig)%mm==obj_mgbf(ig)%jm) then
-        hwork_mgbf=obj_mgbf(ig)%VALL
+        hwork_mgbf=obj_mgbf(ig)%VALL(1:obj_mgbf(ig)%km_all,1:obj_mgbf(ig)%im,1:obj_mgbf(ig)%jm)
+        obj_mgbf(ig)%VALL=zero
      elseif(obj_mgbf(ig)%l_new_map) then
         call obj_mgbf(ig)%filt_to_anal_all2(hwork_mgbf)
      else
@@ -4191,7 +4194,8 @@ endif
      if(obj_mgbf(ig)%km_a_all==obj_mgbf(ig)%km_all &
           &.and. obj_mgbf(ig)%nm==obj_mgbf(ig)%im &
           &.and. obj_mgbf(ig)%mm==obj_mgbf(ig)%jm) then
-        obj_mgbf(ig)%VALL=hwork_mgbf
+        obj_mgbf(ig)%VALL=zero
+        obj_mgbf(ig)%VALL(1:obj_mgbf(ig)%km_all,1:obj_mgbf(ig)%im,1:obj_mgbf(ig)%jm)=hwork_mgbf
      elseif(obj_mgbf(ig)%l_new_map) then
         call obj_mgbf(ig)%anal_to_filt_all2(hwork_mgbf)
      else
