@@ -1130,7 +1130,7 @@ subroutine fact_qopt2(factk,rh,kvar)
   dn1=one-dn2
   n =min0(max(1,n) ,25)
   np=min0(max(1,np),25)
-  factk=factk*(varq(n,kvar)*dn1+varq(np,kvar)*dn2)    ! qoption=2
+  factk=factk*(varq(n,kvar,1)*dn1+varq(np,kvar,1)*dn2)    ! qoption=2
 
   return
 end subroutine fact_qopt2

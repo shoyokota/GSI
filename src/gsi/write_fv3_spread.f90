@@ -77,7 +77,7 @@ contains
 
     use constants, only: one, rad2deg, r1000
 
-    use obsmod, only: ianldate 
+    use obsmod, only: ianldate,if_cs_staticB
     use hybrid_ensemble_parameters, only: region_lat_ens,region_lon_ens
     use mpimod, only: npe
 
@@ -138,8 +138,13 @@ contains
 !   space for comparison with obs.
     istatus=0
      
-    call gsi_bundlegetpointer(en_spread,'sf', uptr, iret); istatus=istatus+iret
-    call gsi_bundlegetpointer(en_spread,'vp', vptr, iret); istatus=istatus+iret
+    if(if_cs_staticB) then
+       call gsi_bundlegetpointer(en_spread,'u', uptr, iret); istatus=istatus+iret
+       call gsi_bundlegetpointer(en_spread,'v', vptr, iret); istatus=istatus+iret
+    else
+       call gsi_bundlegetpointer(en_spread,'sf', uptr, iret); istatus=istatus+iret
+       call gsi_bundlegetpointer(en_spread,'vp', vptr, iret); istatus=istatus+iret
+    end if
     call gsi_bundlegetpointer(en_spread,'t', tptr, iret); istatus=istatus+iret
     call gsi_bundlegetpointer(en_spread,'q', qptr, iret); istatus=istatus+iret
     call gsi_bundlegetpointer(en_spread,'ps', psptr, iret); istatus=istatus+iret ! needed for delp

@@ -36,6 +36,8 @@
   use obsmod, only: netcdf_diag, binary_diag
   use obsmod, only: l_wcp_cwm,ompslp_mult_fact
   use obsmod, only: l_obsprvdiag
+  use obsmod, only: if_cs_staticB,if_consistency_ratio, nb_cv, covar
+  use obsmod, only: extra_var2num,extra_var3num
   use obsmod, only: aircraft_recon, &
        
        ! The following variables are the coefficients that describe
@@ -491,6 +493,8 @@
 !                       files. The fv3_io_layout_y needs to match fv3lam model
 !                       option io_layout(2).
 !  09-15-2022 yokota  - add scale/variable/time-dependent localization
+!  11-16-2022 Y. Yang, Y. Wang, X. Wang - add the capability of using convective-scale static B.
+!                                         poc: xuguang.wang@ou.edu
 !
 !EOP
 !-------------------------------------------------------------------------
@@ -711,6 +715,12 @@
 !                     (.TRUE.: on; .FALSE.: off) / Inputfile: dbzbufr (bufr format)
 !     l_obsprvdiag - trigger (if true) writing out observation provider and sub-provider
 !                    information into obsdiags files (used for AutoObsQC)
+!     if_cs_staticB - option to use convective-scale static BEC  
+!     if_consistency_ratio - option to ues adaptive hybridization
+!     nb_cv - the number of control variables in convective-scale static BEC 
+!     covar - flag of including cross-variable correlation
+!     extra_var2num - the number of cross-variable correlations with ps 
+!     extra_var3num - the number of cross-variable correlations among 3D varibles
 !
 !     NOTE:  for now, if in regional mode, then iguess=-1 is forced internally.
 !            add use of guess file later for regional mode.
@@ -756,7 +766,8 @@
        write_fv3_incr,incvars_to_zero,incvars_zero_strat,incvars_efold,diag_version,&
        cao_check,lcalc_gfdl_cfrac,tau_fcst,efsoi_order,lupdqc,lqcoef,cnvw_option,l2rwthin,hurricane_radar,&
        l_reg_update_hydro_delz, l_obsprvdiag,&
-       l_use_dbz_directDA, l_use_rw_columntilt, ta2tb
+       l_use_dbz_directDA, l_use_rw_columntilt, ta2tb,&
+       if_cs_staticB,if_consistency_ratio,nb_cv,covar,extra_var2num,extra_var3num
 
 ! GRIDOPTS (grid setup variables,including regional specific variables):
 !     jcap     - spectral resolution

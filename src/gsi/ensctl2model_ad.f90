@@ -55,15 +55,15 @@ character(len=*),parameter::myname='ensctl2state'
 character(len=max_varname_length),allocatable,dimension(:) :: clouds
 integer(i_kind) :: ii,jj,ic,id,istatus,nclouds,nn
 
-integer(i_kind), parameter :: ncvars = 5
+integer(i_kind), parameter :: ncvars = 7
 integer(i_kind) :: icps(ncvars)
 type(gsi_bundle):: wbundle_c ! work bundle
 type(gsi_bundle),allocatable :: ebundle(:,:)
 real(r_kind) :: grade(nval_lenz_en)
 character(len=3), parameter :: mycvars(ncvars) = (/  &  ! vars from CV needed here
                                'sf ', 'vp ', 'ps ', 't  ',    &
-                               'q  '/)
-logical :: lc_sf,lc_vp,lc_ps,lc_t,lc_rh
+                               'q  ', 'u  ', 'v  '/)
+logical :: lc_sf,lc_vp,lc_ps,lc_t,lc_rh,lc_u,lc_v
 real(r_kind),pointer,dimension(:,:)   :: cv_ps
 real(r_kind),pointer,dimension(:,:,:) :: cv_sf,cv_vp,cv_rh,cv_tv
 ! Declare required local state variables
@@ -77,7 +77,7 @@ real(r_kind),pointer,dimension(:,:,:) :: rv_u,rv_v,rv_prse,rv_q,rv_tsen,rv_tv,rv
 real(r_kind),pointer,dimension(:,:,:) :: rv_rank3
 
 logical :: do_getuv,do_tv_to_tsen_ad,do_normal_rh_to_q_ad,do_getprs_ad
-logical :: do_tlnmc,lstrong_bk_vars,do_q_copy
+logical :: do_tlnmc,lstrong_bk_vars,do_q_copy,do_uv_copy
 integer(i_kind) :: ig
 !****************************************************************************
 
@@ -96,6 +96,7 @@ endif
 call gsi_bundlegetpointer (grad%step(1),mycvars,icps,istatus)
 lc_sf =icps(1)>0; lc_vp =icps(2)>0; lc_ps =icps(3)>0
 lc_t  =icps(4)>0; lc_rh =icps(5)>0
+lc_u  =icps(6)>0; lc_v  =icps(7)>0
 
 ! Since each internal vector of grad has the same structure, pointers are
 ! the same independent of the subwindow jj
@@ -106,6 +107,7 @@ ls_q  =isps(4)>0; ls_tsen=isps(5)>0
 ! Define what to do depending on what's in CV and SV
 lstrong_bk_vars     =lc_sf.and.lc_vp.and.lc_ps .and.lc_t
 do_getuv            =lc_sf.and.lc_vp.and.ls_u  .and.ls_v
+do_uv_copy          =lc_u .and.lc_v
 do_tv_to_tsen_ad    =lc_t .and.ls_q .and.ls_tsen
 do_normal_rh_to_q_ad=lc_t .and.lc_rh.and.ls_prse.and.ls_q.and.(.not.q_hyb_ens)
 do_q_copy=.false.
@@ -142,8 +144,10 @@ do jj=1,ntlevs_ens
    endif
    wbundle_c%values=zero
 
-   call gsi_bundlegetpointer (wbundle_c,'sf' ,cv_sf ,istatus)
-   call gsi_bundlegetpointer (wbundle_c,'vp' ,cv_vp ,istatus)
+   if(.not.do_uv_copy)then
+      call gsi_bundlegetpointer (wbundle_c,'sf' ,cv_sf ,istatus)
+      call gsi_bundlegetpointer (wbundle_c,'vp' ,cv_vp ,istatus)
+   end if
    call gsi_bundlegetpointer (wbundle_c,'q'  ,cv_rh ,istatus)
    call gsi_bundlegetpointer (wbundle_c,'t'  ,cv_tv, istatus)
    call gsi_bundlegetpointer (wbundle_c,'ps' ,cv_ps ,istatus)
@@ -199,6 +203,9 @@ do jj=1,ntlevs_ens
       else
          call getuv(rv_u,rv_v,cv_sf,cv_vp,1)
       end if
+   elseif(do_uv_copy) then
+      call gsi_bundleputvar ( wbundle_c, 'u', rv_u, istatus )
+      call gsi_bundleputvar ( wbundle_c, 'v', rv_v, istatus )
    end if
 
    if(do_q_copy) then

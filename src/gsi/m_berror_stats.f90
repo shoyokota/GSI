@@ -329,8 +329,8 @@ subroutine read_wgt(corz,corp,hwll,hwllp,vz,corsst,hsst,varq,qoption,varcw,cwopt
    real(r_single),dimension(nlat,nlon),intent(out  ) :: corsst
    real(r_single),dimension(nlat,nlon),intent(out  ) :: hsst
 
-   real(r_kind),  dimension(:,:)      ,intent(out  ) :: varq
-   real(r_kind),  dimension(:,:)      ,intent(out  ) :: varcw
+   real(r_kind),  dimension(:,:,:)    ,intent(out  ) :: varq
+   real(r_kind),  dimension(:,:,:)    ,intent(out  ) :: varcw
 
    integer(i_kind)                    ,intent(in   ) :: qoption
    integer(i_kind)                    ,intent(in   ) :: cwoption
@@ -454,7 +454,7 @@ subroutine read_wgt(corz,corp,hwll,hwllp,vz,corsst,hsst,varq,qoption,varcw,cwopt
                do k=1,isig
                   do i=1,nlat
                      corq2x=corq2(i,k)
-                     varq(i,k)=min(max(corq2x,0.00015_r_kind),one)
+                     varq(i,k,1)=min(max(corq2x,0.00015_r_kind),one)
                   enddo
                enddo
                do k=1,isig
@@ -467,7 +467,7 @@ subroutine read_wgt(corz,corp,hwll,hwllp,vz,corsst,hsst,varq,qoption,varcw,cwopt
                do k=1,isig
                   do i=1,nlat
                      corq2x=corq2(i,k)
-                     varcw(i,k)=max(corq2x,zero)
+                     varcw(i,k,1)=max(corq2x,zero)
                   enddo
                enddo
                do k=1,isig

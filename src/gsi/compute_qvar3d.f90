@@ -48,7 +48,7 @@ subroutine compute_qvar3d
   use gsi_bundlemod, only: gsi_bundlegetpointer
   use general_sub2grid_mod, only: general_sub2grid,general_grid2sub
   use radiance_mod, only: icloud_cv,n_clouds_fwd,cloud_names_fwd
-  use obsmod, only: l_wcp_cwm
+  use obsmod, only: l_wcp_cwm, if_cs_staticB
 
   implicit none
 
@@ -69,6 +69,7 @@ subroutine compute_qvar3d
   real(r_kind),pointer,dimension(:,:,:):: ges_qg=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_qh=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_q =>NULL()
+  real(r_kind),pointer,dimension(:,:,:):: ges_mask=>NULL()
   integer(i_kind):: maxvarq1
 
 
@@ -114,6 +115,8 @@ subroutine compute_qvar3d
      end do
   end do
 
+  if( if_cs_staticB ) call gsi_bundlegetpointer(gsi_metguess_bundle(ntguessig),'mask',ges_mask,ier)
+
 ! Compute saturation specific humidity.  Set up normalization factor
 ! for limq routines (1/qs*2)
   if(qoption == 1)then
@@ -145,7 +148,17 @@ subroutine compute_qvar3d
               dn1=one-dn2
               n=min0(max(1,n),maxvarq1)
               np=min0(max(1,np),maxvarq1)
-              dssv(i,j,k,nrf3_q)=(varq(n,k)*dn1 + varq(np,k)*dn2)*dssv(i,j,k,nrf3_q)
+              if( if_cs_staticB )then
+                 if ( maxval(ges_mask(i,j,:)) > 90.0_r_kind )then
+                    dssv(i,j,k,nrf3_q)=(varq(n,k,3)*dn1 + varq(np,k,3)*dn2)*dssv(i,j,k,nrf3_q)
+                 else if( minval(ges_mask(i,j,:)) < -90.0_r_kind )then
+                    dssv(i,j,k,nrf3_q)=(varq(n,k,2)*dn1 + varq(np,k,2)*dn2)*dssv(i,j,k,nrf3_q)
+                 else
+                    dssv(i,j,k,nrf3_q)=(varq(n,k,1)*dn1 + varq(np,k,1)*dn2)*dssv(i,j,k,nrf3_q)
+                 end if
+              else
+                 dssv(i,j,k,nrf3_q)=(varq(n,k,1)*dn1 + varq(np,k,1)*dn2)*dssv(i,j,k,nrf3_q)
+              end if
            end do
         end do
      end do
@@ -204,7 +217,17 @@ subroutine compute_qvar3d
                  dn1=one-dn2
                  n=min0(max(1,n),30)
                  np=min0(max(1,np),30)
-                 dssv(i,j,k,nrf3_cw)=(varcw(n,k)*dn1 + varcw(np,k)*dn2)*dssv(i,j,k,nrf3_cw)
+                 if( if_cs_staticB )then
+                    if ( maxval(ges_mask(i,j,:)) > 90.0_r_kind )then
+                       dssv(i,j,k,nrf3_cw)=(varcw(n,k,3)*dn1 + varcw(np,k,3)*dn2)*dssv(i,j,k,nrf3_cw)
+                    else if( minval(ges_mask(i,j,:)) < -90.0_r_kind )then
+                       dssv(i,j,k,nrf3_cw)=(varcw(n,k,2)*dn1 + varcw(np,k,2)*dn2)*dssv(i,j,k,nrf3_cw)
+                    else
+                       dssv(i,j,k,nrf3_cw)=(varcw(n,k,1)*dn1 + varcw(np,k,1)*dn2)*dssv(i,j,k,nrf3_cw)
+                    end if
+                 else
+                    dssv(i,j,k,nrf3_cw)=(varcw(n,k,1)*dn1 + varcw(np,k,1)*dn2)*dssv(i,j,k,nrf3_cw)
+                 end if
               end do
            end do
         end do

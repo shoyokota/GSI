@@ -59,14 +59,14 @@ character(len=*),parameter::myname='ensctl2state'
 character(len=max_varname_length),allocatable,dimension(:) :: clouds
 integer(i_kind) :: jj,ic,id,istatus,nclouds
 
-integer(i_kind), parameter :: ncvars = 8
+integer(i_kind), parameter :: ncvars = 10
 integer(i_kind) :: icps(ncvars)
 type(gsi_bundle):: wbundle_c ! work bundle
 character(len=3), parameter :: mycvars(ncvars) = (/  &  ! vars from CV needed here
                                'sf ', 'vp ', 'ps ', 't  ',    &
-                               'q  ', 'cw ', 'w  ', 'dw '/)
+                               'q  ', 'cw ', 'w  ', 'dw ', 'u  ', 'v  '/)
 logical :: lc_sf,lc_vp,lc_ps,lc_t,lc_rh,lc_cw
-logical :: lc_w,lc_dw
+logical :: lc_w,lc_dw,lc_u,lc_v
 real(r_kind),pointer,dimension(:,:,:) :: cv_sf=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: cv_vp=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: cv_rh=>NULL()
@@ -93,7 +93,7 @@ real(r_kind),pointer,dimension(:,:,:) :: sv_w=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: sv_dw=>NULL()
 
 logical :: do_getprs_tl,do_normal_rh_to_q,do_tv_to_tsen,do_getuv,lstrong_bk_vars
-logical :: do_tlnmc,do_q_copy
+logical :: do_tlnmc,do_q_copy,do_uv_copy
 logical :: do_cw_to_hydro
 logical :: do_cw_to_hydro_hwrf
 
@@ -115,6 +115,7 @@ call gsi_bundlegetpointer (xhat%step(1),mycvars,icps,istatus)
 lc_sf =icps(1)>0; lc_vp =icps(2)>0; lc_ps =icps(3)>0
 lc_t  =icps(4)>0; lc_rh =icps(5)>0; lc_cw =icps(6)>0
 lc_w  =icps(7)>0; lc_dw =icps(8)>0
+lc_u  =icps(9)>0; lc_v  =icps(10)>0
 
 ! Since each internal vector of xhat has the same structure, pointers are
 ! the same independent of the subwindow jj
@@ -136,6 +137,7 @@ if(.not. do_normal_rh_to_q) then
 end if
 do_tv_to_tsen    =lc_t .and.ls_q .and.ls_tsen
 do_getuv         =lc_sf.and.lc_vp.and.ls_u.and.ls_v
+do_uv_copy       =lc_u .and.lc_v
 !  Create a temporary bundle similar to xhat, and copy contents of xhat into it
 call gsi_bundlecreate ( wbundle_c, xhat%step(1), 'ensctl2state work', istatus )
 if(istatus/=0) then
@@ -194,6 +196,9 @@ do jj=1,ntlevs_ens
          call gsi_bundlegetpointer (wbundle_c,'vp' ,cv_vp ,istatus)
          call getuv(sv_u,sv_v,cv_sf,cv_vp,0)
       end if
+   elseif(do_uv_copy) then
+      call gsi_bundlegetvar (wbundle_c,'u' ,sv_u ,istatus)
+      call gsi_bundlegetvar (wbundle_c,'v' ,sv_v ,istatus)
    end if
 
 !$omp section

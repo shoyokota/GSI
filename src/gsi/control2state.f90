@@ -78,6 +78,7 @@ use constants, only : max_varname_length, zero
 use general_sub2grid_mod, only: general_sub2grid,general_grid2sub
 use general_commvars_mod, only: s2g_cv
 use gridmod, only: nems_nmmb_regional
+use obsmod, only: if_cs_staticB
 implicit none
   
 ! Declare passed variables  
@@ -97,15 +98,15 @@ type(gsi_bundle):: wbundle ! work bundle
 !       the state and control vectors, but rather the ones
 !       this routines knows how to handle.
 ! Declare required local control variables
-integer(i_kind), parameter :: ncvars = 9
+integer(i_kind), parameter :: ncvars = 11
 integer(i_kind) :: icps(ncvars)
 integer(i_kind) :: icpblh,icgust,icvis,icoz,icwspd10m,icw
 integer(i_kind) :: ictd2m,icmxtm,icmitm,icpmsl,ichowv
 integer(i_kind) :: icsfwter,icvpwter,ictcamt,iclcbas
 integer(i_kind) :: iccldch,icuwnd10m,icvwnd10m
 character(len=3), parameter :: mycvars(ncvars) = (/  &  ! vars from CV needed here
-                'sf ', 'vp ', 'ps ', 't  ', 'q  ', 'cw ', 'ql ', 'qi ', 'w  ' /)
-logical :: lc_sf,lc_vp,lc_w,lc_ps,lc_t,lc_rh,lc_cw,lc_ql,lc_qi
+                'sf ', 'vp ', 'ps ', 't  ', 'q  ', 'cw ', 'ql ', 'qi ', 'w  ', 'u  ', 'v  ' /)
+logical :: lc_sf,lc_vp,lc_w,lc_ps,lc_t,lc_rh,lc_cw,lc_ql,lc_qi,lc_u,lc_v
 real(r_kind),pointer,dimension(:,:)   :: cv_ps=>NULL()
 real(r_kind),pointer,dimension(:,:)   :: cv_lcbas=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: cv_sf=>NULL()
@@ -141,6 +142,7 @@ real(r_kind),allocatable,dimension(:,:,:):: uland,vland,uwter,vwter
 
 logical :: do_getprs_tl,do_normal_rh_to_q,do_tv_to_tsen,do_getuv,do_cw_to_hydro
 logical :: do_cw_to_hydro_hwrf
+logical :: do_uv_copy
 
 !******************************************************************************
 
@@ -173,6 +175,7 @@ call gsi_bundlegetpointer (xhat%step(1),mycvars,icps,istatus)
 lc_sf =icps(1)>0; lc_vp =icps(2)>0; lc_ps =icps(3)>0
 lc_t  =icps(4)>0; lc_rh =icps(5)>0; lc_cw =icps(6)>0
 lc_ql =icps(7)>0; lc_qi =icps(8)>0; lc_w  =icps(9)>0
+lc_u  =icps(10)>0;lc_v  =icps(11)>0
 
 ! Since each internal vector of xhat has the same structure, pointers are
 ! the same independent of the subwindow jj
@@ -188,6 +191,11 @@ do_getprs_tl     =lc_ps.and.lc_t .and.ls_prse
 do_normal_rh_to_q=lc_rh.and.lc_t .and.ls_prse.and.ls_q
 do_tv_to_tsen    =lc_t .and.ls_q .and.ls_tsen
 do_getuv         =lc_sf.and.lc_vp.and.ls_u.and.ls_v
+do_uv_copy       =lc_u .and.lc_v
+if( if_cs_staticB .and. ( .not. do_uv_copy ) )then
+   write(6,*) trim(myname),': convective-scale static BEC is used but uv are not the horizontal momentum CVs'
+   call stop2(9999)
+end if
 
 do_cw_to_hydro=.false.
 do_cw_to_hydro_hwrf=.false.
@@ -240,11 +248,17 @@ do jj=1,nsubwin
 !$omp parallel sections private(istatus,ii,ic,id,uland,vland,uwter,vwter) 
 
 !$omp section
-
-   call gsi_bundlegetpointer (wbundle,'sf' ,cv_sf ,istatus)
-   call gsi_bundlegetpointer (wbundle,'vp' ,cv_vp ,istatus)
    call gsi_bundlegetpointer (sval(jj),'u'   ,sv_u,   istatus)
    call gsi_bundlegetpointer (sval(jj),'v'   ,sv_v,   istatus)
+
+   if(do_uv_copy)then
+      call gsi_bundlegetvar (wbundle,'u' ,sv_u ,istatus)
+      call gsi_bundlegetvar (wbundle,'v' ,sv_v ,istatus)
+   else
+      call gsi_bundlegetpointer (wbundle,'sf' ,cv_sf ,istatus)
+      call gsi_bundlegetpointer (wbundle,'vp' ,cv_vp ,istatus)
+   end if
+
 !  Convert streamfunction and velocity potential to u,v
    if(do_getuv) then
       if (twodvar_regional .and. icsfwter>0 .and. icvpwter>0) then
