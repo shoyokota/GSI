@@ -221,6 +221,23 @@ subroutine prewgt_reg(mype)
 
 ! Read in background error stats and interpolate in vertical to that specified in namelist
   call berror_read_wgt_reg(msig,mlat,corz,corp,hwll,hwllp,vz,rlsig,varq,qoption,varcw,cwoption,mype,inerr)
+  if(mype==0) then
+     j=int(rllat(ny/2,nx/2))
+     write(6,*) 'cvars3d,bin,sig,corz,hwll,vz'
+     do n=1,nc3d
+        do k=1,nsig
+           if(n==nrf3_q) then
+              write(6,'(a10,2i5,3es12.4)') cvars3d(n),0,k,varq(min(11,mlat),k),hwll(j,k,n),vz(k,j,n)
+           else
+              write(6,'(a10,2i5,3es12.4)') cvars3d(n),0,k,corz(j,k,n),hwll(j,k,n),vz(k,j,n)
+           end if
+        end do
+     end do
+     write(6,*) 'cvars2d,bin,sig,corp,hwllp'
+     do n=1,nc2d
+        write(6,'(a10,2i5,2es12.4)') cvars2d(n),0,0,corp(j,n),hwllp(j,n)
+     end do
+  end if
 
 ! find ozmz for background error variance
   kb=0
